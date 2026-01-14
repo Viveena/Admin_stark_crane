@@ -1,0 +1,79 @@
+'use client'
+
+import { useEffect } from 'react'
+import Card from '@mui/material/Card'
+import CardHeader from '@mui/material/CardHeader'
+import CardContent from '@mui/material/CardContent'
+import Button from '@mui/material/Button'
+import Switch from '@mui/material/Switch'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Select from '@mui/material/Select'
+import MenuItem from '@mui/material/MenuItem'
+import FormControl from '@mui/material/FormControl'
+import InputLabel from '@mui/material/InputLabel'
+import Chip from '@mui/material/Chip'
+import Box from '@mui/material/Box'
+import { useForm, Controller } from 'react-hook-form'
+
+const EVENT_OPTIONS = ['Annual Meet 2025', 'Product Launch Nov', 'Safety Workshop', 'Charity Run']
+
+const HomeEventsSection = () => {
+    const { control, handleSubmit, reset } = useForm({
+        defaultValues: { isVisible: true, selectedEvents: [] as string[] }
+    })
+
+    useEffect(() => {
+        const savedData = localStorage.getItem('home_events_data')
+        if (savedData) reset(JSON.parse(savedData))
+    }, [reset])
+
+    const onSubmit = (data: any) => {
+        localStorage.setItem('home_events_data', JSON.stringify(data))
+        alert('Events Section Saved')
+    }
+
+    return (
+        <Card>
+            <form onSubmit={handleSubmit(onSubmit)}>
+                <CardHeader
+                    title='Events Section'
+                    action={
+                        <div className="flex items-center gap-4">
+                            <Controller
+                                name='isVisible'
+                                control={control}
+                                render={({ field }) => (
+                                    <FormControlLabel control={<Switch checked={field.value} onChange={field.onChange} />} label={field.value ? "Visible" : "Hidden"} />
+                                )}
+                            />
+                            <Button variant='contained' type='submit'>Save</Button>
+                        </div>
+                    }
+                />
+                <CardContent>
+                    <div className='flex flex-col gap-6'>
+                        <Controller
+                            name='selectedEvents'
+                            control={control}
+                            render={({ field }) => (
+                                <FormControl fullWidth>
+                                    <InputLabel>Select Events</InputLabel>
+                                    <Select
+                                        multiple
+                                        {...field}
+                                        label='Select Events'
+                                        renderValue={(selected) => <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>{(selected as string[]).map((value) => <Chip key={value} label={value} size="small" />)}</Box>}
+                                    >
+                                        {EVENT_OPTIONS.map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
+                                    </Select>
+                                </FormControl>
+                            )}
+                        />
+                    </div>
+                </CardContent>
+            </form>
+        </Card>
+    )
+}
+
+export default HomeEventsSection
