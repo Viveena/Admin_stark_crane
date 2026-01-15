@@ -5,25 +5,64 @@ const db = require('../config/db');
 const { generateOtp, sendOtpEmail } = require('../services/otpService');
 
 exports.login = async (req, res) => {
-  // Superadmin Bypass
+  // Extract email and password early for bypass check
   const { email, password } = req.body;
-  if (email === 'superamin' && password === 'super') {
-    const payload = {
-      user: {
-        id: 'superadmin',
-        role: 'superadmin',
-      },
-    };
+  
+  // Helper function to handle bypass login
+  const handleBypassLogin = async (emailCheck, usernameCheck, defaultRole) => {
+    try {
+      const [users] = await db.query(
+        `SELECT u.id, u.email, r.name as role_name 
+         FROM users u 
+         LEFT JOIN roles r ON u.role_id = r.id 
+         WHERE u.email = ? OR u.username = ? 
+         LIMIT 1`,
+        [emailCheck, usernameCheck]
+      );
+      
+      if (users.length > 0) {
+        const user = users[0];
+        const payload = {
+          user: {
+            id: user.id,
+            role: user.role_name || defaultRole,
+          },
+        };
 
-    return jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token, role: 'superadmin' });
+        return new Promise((resolve, reject) => {
+          jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' },
+            (err, token) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              res.json({ token, role: user.role_name || defaultRole });
+              resolve(true);
+            }
+          );
+        });
       }
-    );
+    } catch (err) {
+      console.error('Bypass database lookup failed:', err);
+    }
+    return false;
+  };
+  
+  // Superadmin Bypass - Check before validation
+  // This allows quick access for superadmin without OTP flow
+  if ((email === 'superadmin@starkcrane.com' || email === 'superadmin') && password === 'superadmin') {
+    const result = await handleBypassLogin('superadmin@starkcrane.com', 'superadmin', 'SUPER_ADMIN');
+    if (result) return;
+  }
+  
+  // Admin Bypass - Check before validation
+  // This allows quick access for admin without OTP flow
+  if ((email === 'admin@starkcrane.com' || email === 'admin') && password === 'admin') {
+    const result = await handleBypassLogin('admin@starkcrane.com', 'admin', 'ADMIN');
+    if (result) return;
   }
 
   const errors = validationResult(req);

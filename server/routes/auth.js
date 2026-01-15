@@ -8,10 +8,18 @@ router.post(
   '/login',
   [
     body('email').custom((value) => {
-      if (value === 'superamin') return true;
+      // Allow bypass credentials
+      if (value === 'superadmin' || value === 'superadmin@starkcrane.com') return true;
+      if (value === 'admin' || value === 'admin@starkcrane.com') return true;
+      // Validate email format
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    }).withMessage('Please enter a valid email or superadmin ID.'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long.'),
+    }).withMessage('Please enter a valid email or admin ID.'),
+    body('password').custom((value) => {
+      // Allow shorter passwords for bypass (superadmin/admin)
+      if (value === 'superadmin' || value === 'admin') return true;
+      // Regular password validation
+      return value && value.length >= 6;
+    }).withMessage('Password must be at least 6 characters long.'),
   ],
   login
 );

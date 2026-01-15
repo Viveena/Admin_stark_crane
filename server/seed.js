@@ -44,10 +44,14 @@ async function seedDatabase() {
 
     // 3. Create SUPER_ADMIN user
     console.log('Creating SUPER_ADMIN user...');
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
-    const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
-    const superAdminUsername = process.env.SUPER_ADMIN_USERNAME ;
-    const superAdminFullName = process.env.SUPER_ADMIN_FULL_NAME;
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'superadmin@starkcrane.com';
+    const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'superadmin';
+    const superAdminUsername = process.env.SUPER_ADMIN_USERNAME || 'superadmin';
+    const superAdminFullName = process.env.SUPER_ADMIN_FULL_NAME || 'Super Administrator';
+
+    if (!superAdminEmail || !superAdminPassword) {
+      throw new Error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD must be set in environment variables or use defaults');
+    }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -78,6 +82,54 @@ async function seedDatabase() {
       console.log(`✓ SUPER_ADMIN user created (email: ${superAdminEmail})`);
     }
 
+    // 4. Create ADMIN user
+    console.log('Creating ADMIN user...');
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const adminUsername = process.env.ADMIN_USERNAME;
+    const adminFullName = process.env.ADMIN_FULL_NAME;
+
+    // Get ADMIN role_id
+    const [adminRoleRows] = await connection.query(
+      'SELECT id FROM roles WHERE name = ?',
+      ['ADMIN']
+    );
+    
+    if (adminRoleRows.length === 0) {
+      throw new Error('ADMIN role not found');
+    }
+    
+    const adminRoleId = adminRoleRows[0].id;
+
+    // Hash admin password
+    const adminSalt = await bcrypt.genSalt(10);
+    const adminHashedPassword = await bcrypt.hash(adminPassword, adminSalt);
+
+    // Check if admin user already exists
+    const [existingAdminUsers] = await connection.query(
+      'SELECT id FROM users WHERE email = ? OR username = ?',
+      [adminEmail, adminUsername]
+    );
+
+    if (existingAdminUsers.length > 0) {
+      // Update existing admin user
+      await connection.query(
+        `UPDATE users 
+         SET full_name = ?, password = ?, role_id = ?, status = 'active'
+         WHERE email = ? OR username = ?`,
+        [adminFullName, adminHashedPassword, adminRoleId, adminEmail, adminUsername]
+      );
+      console.log(`✓ ADMIN user updated (email: ${adminEmail})`);
+    } else {
+      // Create new admin user
+      await connection.query(
+        `INSERT INTO users (full_name, username, email, password, role_id, status) 
+         VALUES (?, ?, ?, ?, ?, 'active')`,
+        [adminFullName, adminUsername, adminEmail, adminHashedPassword, adminRoleId]
+      );
+      console.log(`✓ ADMIN user created (email: ${adminEmail})`);
+    }
+
     // Commit transaction
     await connection.commit();
     console.log('\n✓ Database seeding completed successfully!');
@@ -85,7 +137,11 @@ async function seedDatabase() {
     console.log(`Email: ${superAdminEmail}`);
     console.log(`Username: ${superAdminUsername}`);
     console.log(`Password: ${superAdminPassword}`);
-    console.log(`\n⚠️  Please change the default password after first login!`);
+    console.log(`\nAdmin Credentials:`);
+    console.log(`Email: ${adminEmail}`);
+    console.log(`Username: ${adminUsername}`);
+    console.log(`Password: ${adminPassword}`);
+    console.log(`\n⚠️  Please change the default passwords after first login!`);
 
   } catch (error) {
     if (connection) {
