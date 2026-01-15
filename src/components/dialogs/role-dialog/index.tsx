@@ -28,15 +28,15 @@ type RoleDialogProps = {
 type DataType =
   | string
   | {
-      title: string
-      read?: boolean
-      write?: boolean
-      select?: boolean
-    }
+    title: string
+    read?: boolean
+    write?: boolean
+    select?: boolean
+  }
 
 const defaultData: DataType[] = [
   'List of All the pages in the admin panel',
-  
+
 ]
 
 const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
@@ -44,13 +44,13 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
   const [selectedCheckbox, setSelectedCheckbox] = useState<string[]>(
     title
       ? [
-          'user-management-read',
-          'user-management-write',
-          'user-management-create',
-          'disputes-management-read',
-          'disputes-management-write',
-          'disputes-management-create'
-        ]
+        'user-management-read',
+        'user-management-write',
+        'user-management-create',
+        'disputes-management-read',
+        'disputes-management-write',
+        'disputes-management-create'
+      ]
       : []
   )
 

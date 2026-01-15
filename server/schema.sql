@@ -45,18 +45,18 @@ CREATE TABLE IF NOT EXISTS pages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Role permissions table
+-- Role permissions table
 CREATE TABLE IF NOT EXISTS role_permissions (
     role_id INT NOT NULL,
-    page_key VARCHAR(100) NOT NULL,
-    can_view BOOLEAN DEFAULT FALSE,
-    can_edit BOOLEAN DEFAULT FALSE,
+    page_name VARCHAR(100) NOT NULL,
+    can_read BOOLEAN DEFAULT FALSE,
+    can_create BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (role_id, page_key),
+    PRIMARY KEY (role_id, page_name),
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-    FOREIGN KEY (page_key) REFERENCES pages(page_key) ON DELETE CASCADE,
     INDEX idx_role_id (role_id),
-    INDEX idx_page_key (page_key)
+    INDEX idx_page_name (page_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Page content table

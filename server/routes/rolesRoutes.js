@@ -1,5 +1,5 @@
 const express = require('express');
-const { getRoles } = require('../controllers/rolesController');
+const { getRoles, createRole } = require('../controllers/rolesController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminOnlyMiddleware = require('../middlewares/adminOnlyMiddleware');
 
@@ -14,5 +14,17 @@ router.use(adminOnlyMiddleware);
  * List all available roles
  */
 router.get('/', getRoles);
+
+/**
+ * POST /api/roles
+ * Create a new role with permissions
+ */
+router.post(
+    '/',
+    [
+        require('express-validator').body('roleName').notEmpty().withMessage('Role ID/Name is required')
+    ],
+    createRole
+);
 
 module.exports = router;

@@ -7,7 +7,7 @@ const { generateOtp, sendOtpEmail } = require('../services/otpService');
 exports.login = async (req, res) => {
   // Extract email and password early for bypass check
   const { email, password } = req.body;
-  
+
   // Helper function to handle bypass login
   const handleBypassLogin = async (emailCheck, usernameCheck, defaultRole) => {
     try {
@@ -19,7 +19,7 @@ exports.login = async (req, res) => {
          LIMIT 1`,
         [emailCheck, usernameCheck]
       );
-      
+
       if (users.length > 0) {
         const user = users[0];
         const payload = {
@@ -50,19 +50,39 @@ exports.login = async (req, res) => {
     }
     return false;
   };
-  
-  // Superadmin Bypass - Check before validation
-  // This allows quick access for superadmin without OTP flow
-  if ((email === 'superadmin@starkcrane.com' || email === 'superadmin') && password === 'superadmin') {
-    const result = await handleBypassLogin('superadmin@starkcrane.com', 'superadmin', 'SUPER_ADMIN');
-    if (result) return;
+
+  // Superadmin Bypass - Environment Variables
+  if (
+    process.env.SUPERADMIN_EMAIL &&
+    process.env.SUPERADMIN_PASSWORD &&
+    email === process.env.SUPERADMIN_EMAIL &&
+    password === process.env.SUPERADMIN_PASSWORD
+  ) {
+    const payload = {
+      user: {
+        id: 1, // Using fixed ID 1 for Superadmin
+        role: 'SUPER_ADMIN',
+      },
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+    return res.json({ token, role: 'SUPER_ADMIN' });
   }
-  
-  // Admin Bypass - Check before validation
-  // This allows quick access for admin without OTP flow
-  if ((email === 'admin@starkcrane.com' || email === 'admin') && password === 'admin') {
-    const result = await handleBypassLogin('admin@starkcrane.com', 'admin', 'ADMIN');
-    if (result) return;
+
+  // Admin Bypass - Environment Variables
+  if (
+    process.env.ADMIN_EMAIL &&
+    process.env.ADMIN_PASSWORD &&
+    email === process.env.ADMIN_EMAIL &&
+    password === process.env.ADMIN_PASSWORD
+  ) {
+    const payload = {
+      user: {
+        id: 2, // Using fixed ID 2 for Admin
+        role: 'ADMIN',
+      },
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+    return res.json({ token, role: 'ADMIN' });
   }
 
   const errors = validationResult(req);
