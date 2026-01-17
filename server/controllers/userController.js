@@ -118,7 +118,7 @@ exports.toggleUserStatus = async (req, res) => {
 
   try {
     // Validate status value
-    const validStatuses = ['active', 'inactive', 'suspended'];
+    const validStatuses = ['active', 'inactive', 'suspended', 'pending'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         msg: `Invalid status. Must be one of: ${validStatuses.join(', ')}`

@@ -104,6 +104,7 @@ const Login = ({ mode }: { mode: Mode }) => {
     control,
     handleSubmit,
     getValues,
+    setValue,
     formState: { errors }
   } = useForm<FormData>({
     resolver: valibotResolver(schema),
@@ -157,6 +158,9 @@ const Login = ({ mode }: { mode: Mode }) => {
           router.push('/')
         } else {
           // Normal OTP flow
+          if (resData.email) {
+            setValue('email', resData.email)
+          }
           setStep('otp')
         }
       } else {

@@ -64,8 +64,8 @@ exports.login = async (req, res) => {
 
 
   try {
-    // 1. Check if user exists
-    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    // 1. Check if user exists (by email OR username to support 'superadmin' login)
+    const [users] = await db.query('SELECT * FROM users WHERE email = ? OR username = ?', [email, email]);
     const user = users[0];
 
     if (!user) {
@@ -83,16 +83,23 @@ exports.login = async (req, res) => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP expires in 5 minutes
 
     // 4. Store OTP in database (delete old OTPs for this email first, then insert new one)
-    await db.query('DELETE FROM otps WHERE email = ?', [email]);
+    // Use user.email (resolved from DB) instead of req.body.email which might be a username
+    const userEmail = user.email;
+
+    await db.query('DELETE FROM otps WHERE email = ?', [userEmail]);
     await db.query(
       'INSERT INTO otps (user_id, email, otp, expires_at) VALUES (?, ?, ?, ?)',
-      [user.id, email, otp, expiresAt]
+      [user.id, userEmail, otp, expiresAt]
     );
 
     // 5. Mock send OTP to user's email
-    await sendOtpEmail(email, otp);
+    await sendOtpEmail(userEmail, otp);
 
-    res.status(200).json({ msg: 'OTP sent to your email for verification.' });
+    // Return the resolved email so the frontend can use it for verification
+    res.status(200).json({
+      msg: 'OTP sent to your email for verification.',
+      email: userEmail
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -162,19 +169,17 @@ exports.verifyOtp = async (req, res) => {
       },
     };
 
-    jwt.sign(
+    const token = jwt.sign(
       payload,
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }, // Token expires in 1 hour
-      (err, token) => {
-        if (err) throw err;
-        res.json({
-          token,
-          role: roleName,
-          permissions: permissionsObject
-        });
-      }
+      { expiresIn: '1h' } // Token expires in 1 hour
     );
+
+    res.json({
+      token,
+      role: roleName,
+      permissions: permissionsObject
+    });
 
   } catch (err) {
     console.error(err.message);

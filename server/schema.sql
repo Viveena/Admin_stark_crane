@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role_id INT NOT NULL,
-    status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+    status ENUM('active', 'inactive', 'suspended', 'pending') DEFAULT 'active',
     company VARCHAR(255) DEFAULT NULL,
     country VARCHAR(100) DEFAULT NULL,
     contact VARCHAR(20) DEFAULT NULL,
