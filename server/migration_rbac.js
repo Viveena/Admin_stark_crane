@@ -16,15 +16,15 @@ const migrate = async () => {
         await db.query(`
       CREATE TABLE role_permissions (
         role_id INT NOT NULL,
-        page_name VARCHAR(100) NOT NULL,
+        page_key VARCHAR(100) NOT NULL,
         can_read BOOLEAN DEFAULT FALSE,
         can_create BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (role_id, page_name),
+        PRIMARY KEY (role_id, page_key),
         FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
         INDEX idx_role_id (role_id),
-        INDEX idx_page_name (page_name)
+        INDEX idx_page_key (page_key)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
@@ -36,14 +36,25 @@ const migrate = async () => {
             'Contact', 'FAQ', 'Crane Selector', 'Other Pages'
         ];
 
+        // Slugify function
+        const slugify = (text) => {
+            return text
+                .toString()
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, '-')     // Replace spaces with -
+                .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+                .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+        };
+
         console.log('Seeding SUPER_ADMIN permissions...');
         const superAdminId = 1;
         // Check if role 1 exists
         const [roles] = await db.query('SELECT id FROM roles WHERE id = ?', [superAdminId]);
         if (roles.length > 0) {
-            const values = pages.map(page => [superAdminId, page, true, true]);
+            const values = pages.map(page => [superAdminId, slugify(page), true, true]);
             await db.query(
-                'INSERT INTO role_permissions (role_id, page_name, can_read, can_create) VALUES ?',
+                'INSERT INTO role_permissions (role_id, page_key, can_read, can_create) VALUES ?',
                 [values]
             );
         }

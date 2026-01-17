@@ -173,3 +173,51 @@ exports.toggleUserStatus = async (req, res) => {
     res.status(500).json({ msg: 'Server error while updating user status' });
   }
 };
+
+/**
+ * Get current user details and permissions
+ * GET /api/users/me
+ */
+exports.getMe = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch user details with role name
+    const [users] = await db.query(
+      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    const user = users[0];
+
+    // Fetch permissions for this user's role
+    const [permissions] = await db.query(
+      'SELECT page_key, can_read, can_create FROM role_permissions WHERE role_id = ?',
+      [user.role_id]
+    );
+
+    // Format permissions similar to authController
+    const permissionsObject = {};
+    permissions.forEach((perm) => {
+      permissionsObject[perm.page_key] = {
+        read: Boolean(perm.can_read),
+        create: Boolean(perm.can_create),
+      };
+    });
+
+    res.status(200).json({
+      user,
+      permissions: permissionsObject,
+    });
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ msg: 'Server error while fetching current user' });
+  }
+};

@@ -32,13 +32,13 @@ exports.createRole = async (req, res) => {
     if (permissions && permissions.length > 0) {
       const permissionValues = permissions.map(p => [
         roleId,
-        p.page_name,
+        p.page_key || p.page_name, // Support both but prefer page_key (slug)
         p.read === true || p.read === 'true' ? 1 : 0,
         p.create === true || p.create === 'true' ? 1 : 0
       ]);
 
       await db.query(
-        'INSERT INTO role_permissions (role_id, page_name, can_read, can_create) VALUES ?',
+        'INSERT INTO role_permissions (role_id, page_key, can_read, can_create) VALUES ?',
         [permissionValues]
       );
     }
@@ -101,7 +101,7 @@ exports.getRolePermissions = async (req, res) => {
 
     // Get permissions for this role from NEW schema
     const [permissions] = await db.query(
-      'SELECT page_name, can_read, can_create FROM role_permissions WHERE role_id = ?',
+      'SELECT page_key, can_read, can_create FROM role_permissions WHERE role_id = ?',
       [roleId]
     );
 
@@ -111,7 +111,8 @@ exports.getRolePermissions = async (req, res) => {
         name: role.name,
       },
       permissions: permissions.map(p => ({
-        page_name: p.page_name,
+        page_name: p.page_key, // Mapping page_key to page_name for frontend compatibility if expected
+        page_key: p.page_key,
         can_read: Boolean(p.can_read),
         can_create: Boolean(p.can_create)
       }))

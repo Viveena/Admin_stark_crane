@@ -62,34 +62,38 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
   const ScrollWrapper = isBreakpointReached ? 'div' : PerfectScrollbar
 
   // Permission State
-  const [permissions, setPermissions] = useState<any[]>([])
+  const [permissions, setPermissions] = useState<any>({})
   const [userRole, setUserRole] = useState<string>('')
 
   useEffect(() => {
-    const fetchPermissions = async () => {
+    // Load from localStorage
+    const storedRole = localStorage.getItem('userRole')
+    const storedPermissions = localStorage.getItem('userPermissions')
+
+    if (storedRole) setUserRole(storedRole)
+    if (storedPermissions) {
       try {
-        const token = localStorage.getItem('token')
-        if (!token) return
-        const response = await fetch('/api/users/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-        if (response.ok) {
-          const data = await response.json()
-          setPermissions(data.permissions || [])
-          setUserRole(data.user.role)
-        }
-      } catch (error) {
-        console.error('Error fetching permissions', error)
+        setPermissions(JSON.parse(storedPermissions))
+      } catch (e) {
+        console.error('Failed to parse permissions', e)
       }
     }
-    fetchPermissions()
   }, [])
 
-  const canRead = (pageName: string) => {
-    if (userRole === 'SUPER_ADMIN') return true
-    return permissions.some(p => p.page_name === pageName && p.can_read)
+  const canRead = (pageTitle: string) => {
+    if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') return true
+
+    // Slugify the title to match page_key
+    const pageKey = pageTitle
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-]+/g, '')
+      .replace(/\-\-+/g, '-')
+
+    // Check if permission object exists and read is true
+    return permissions[pageKey]?.read === true
   }
 
   return (

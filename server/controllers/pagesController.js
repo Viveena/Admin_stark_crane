@@ -1,6 +1,27 @@
 const { validationResult } = require('express-validator');
 const db = require('../config/db');
 
+
+/**
+ * Get all pages
+ * GET /api/pages
+ */
+exports.getAllPages = async (req, res) => {
+  try {
+    const [pages] = await db.query(
+      'SELECT id, page_key, title FROM pages ORDER BY title ASC'
+    );
+
+    res.status(200).json({
+      pages,
+      count: pages.length,
+    });
+  } catch (error) {
+    console.error('Error fetching all pages:', error);
+    res.status(500).json({ msg: 'Server error while fetching pages' });
+  }
+};
+
 /**
  * Get page content and visibility
  * GET /api/pages/:pageKey
@@ -43,8 +64,8 @@ exports.getPage = async (req, res) => {
     if (page.content_json) {
       try {
         // MySQL JSON type is already parsed by mysql2, but handle both string and object
-        contentJson = typeof page.content_json === 'string' 
-          ? JSON.parse(page.content_json) 
+        contentJson = typeof page.content_json === 'string'
+          ? JSON.parse(page.content_json)
           : page.content_json;
       } catch (error) {
         console.error('Error parsing content_json:', error);
@@ -123,7 +144,7 @@ exports.updatePage = async (req, res) => {
     if (existingContent.length > 0) {
       // Update existing content
       const contentId = existingContent[0].id;
-      
+
       // Build update query dynamically based on provided fields
       const updateFields = [];
       const updateValues = [];
@@ -167,8 +188,8 @@ exports.updatePage = async (req, res) => {
       const content = updatedContent[0];
       let parsedJson = null;
       if (content.content_json) {
-        parsedJson = typeof content.content_json === 'string' 
-          ? JSON.parse(content.content_json) 
+        parsedJson = typeof content.content_json === 'string'
+          ? JSON.parse(content.content_json)
           : content.content_json;
       }
 
@@ -211,8 +232,8 @@ exports.updatePage = async (req, res) => {
       const content = newContent[0];
       let parsedJson = null;
       if (content.content_json) {
-        parsedJson = typeof content.content_json === 'string' 
-          ? JSON.parse(content.content_json) 
+        parsedJson = typeof content.content_json === 'string'
+          ? JSON.parse(content.content_json)
           : content.content_json;
       }
 

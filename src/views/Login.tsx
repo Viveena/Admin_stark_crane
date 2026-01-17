@@ -190,6 +190,9 @@ const Login = ({ mode }: { mode: Mode }) => {
           if (resData.role) {
             localStorage.setItem('userRole', resData.role)
           }
+          if (resData.permissions) {
+            localStorage.setItem('userPermissions', JSON.stringify(resData.permissions))
+          }
           router.push('/')
         } else {
           // Handle OTP error (maybe show an alert or set error state)

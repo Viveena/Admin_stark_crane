@@ -25,74 +25,137 @@ type RoleDialogProps = {
   title?: string
 }
 
-type DataType =
-  | string
-  | {
-    title: string
-    read?: boolean
-    write?: boolean
-    select?: boolean
+type PageType = {
+  id: number
+  page_key: string
+  title: string
+}
+
+type PermissionType = {
+  [key: string]: {
+    read: boolean
+    create: boolean
   }
-
-const defaultData: DataType[] = [
-  'List of All the pages in the admin panel',
-
-]
+}
 
 const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
   // States
-  const [selectedCheckbox, setSelectedCheckbox] = useState<string[]>(
-    title
-      ? [
-        'user-management-read',
-        'user-management-write',
-        'user-management-create',
-        'disputes-management-read',
-        'disputes-management-write',
-        'disputes-management-create'
-      ]
-      : []
-  )
-
+  const [roleName, setRoleName] = useState('')
+  const [pages, setPages] = useState<PageType[]>([])
+  const [permissions, setPermissions] = useState<PermissionType>({})
   const [isIndeterminateCheckbox, setIsIndeterminateCheckbox] = useState<boolean>(false)
+  const [isSelectAll, setIsSelectAll] = useState<boolean>(false)
+
+  // Fetch pages on mount
+  useEffect(() => {
+    const fetchPages = async () => {
+      try {
+        // Adjust API URL if needed, assuming relative path works or use process.env
+        const res = await fetch('/api/pages')
+        if (res.ok) {
+          const data = await res.json()
+          setPages(data.pages || [])
+
+          // Initialize permissions state
+          const initialPermissions: PermissionType = {}
+          data.pages?.forEach((page: PageType) => {
+            initialPermissions[page.page_key] = { read: false, create: false }
+          })
+          setPermissions(initialPermissions)
+        }
+      } catch (err) {
+        console.error('Failed to fetch pages', err)
+      }
+    }
+
+    if (open) {
+      fetchPages()
+      if (title) setRoleName(title)
+    }
+  }, [open, title])
+
+  // Handle Select All
+  useEffect(() => {
+    if (pages.length === 0) return
+
+    const allRead = pages.every(p => permissions[p.page_key]?.read)
+    const allCreate = pages.every(p => permissions[p.page_key]?.create)
+    const allSelected = allRead && allCreate
+
+    const someSelected = pages.some(p => permissions[p.page_key]?.read || permissions[p.page_key]?.create)
+
+    setIsSelectAll(allSelected)
+    setIsIndeterminateCheckbox(someSelected && !allSelected)
+  }, [permissions, pages])
+
 
   const handleClose = () => {
     setOpen(false)
+    setRoleName('')
+    setPermissions({})
   }
 
-  const togglePermission = (id: string) => {
-    const arr = selectedCheckbox
-
-    if (selectedCheckbox.includes(id)) {
-      arr.splice(arr.indexOf(id), 1)
-      setSelectedCheckbox([...arr])
-    } else {
-      arr.push(id)
-      setSelectedCheckbox([...arr])
-    }
+  const togglePermission = (pageKey: string, type: 'read' | 'create') => {
+    setPermissions(prev => ({
+      ...prev,
+      [pageKey]: {
+        ...prev[pageKey],
+        [type]: !prev[pageKey][type]
+      }
+    }))
   }
 
   const handleSelectAllCheckbox = () => {
-    if (isIndeterminateCheckbox) {
-      setSelectedCheckbox([])
-    } else {
-      defaultData.forEach(row => {
-        const id = (typeof row === 'string' ? row : row.title).toLowerCase().split(' ').join('-')
+    const newStatus = !isSelectAll
+    const newPermissions: PermissionType = {}
 
-        togglePermission(`${id}-read`)
-        togglePermission(`${id}-write`)
-        togglePermission(`${id}-create`)
-      })
-    }
+    pages.forEach(page => {
+      newPermissions[page.page_key] = {
+        read: newStatus,
+        create: newStatus
+      }
+    })
+
+    setPermissions(newPermissions)
   }
 
-  useEffect(() => {
-    if (selectedCheckbox.length > 0 && selectedCheckbox.length < defaultData.length * 3) {
-      setIsIndeterminateCheckbox(true)
-    } else {
-      setIsIndeterminateCheckbox(false)
+  const handleSubmit = async () => {
+    try {
+      const payload = {
+        roleName: roleName,
+        permissions: pages.map(page => ({
+          page_key: page.page_key, // Send page_key (slug)
+          read: permissions[page.page_key]?.read || false,
+          create: permissions[page.page_key]?.create || false
+        }))
+      }
+
+      console.log('Submitting role:', payload)
+
+      const res = await fetch('/api/roles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (res.ok) {
+        // Success
+        console.log('Role created successfully')
+        handleClose()
+        // Ideally reload role list here
+        window.location.reload()
+      } else {
+        const errData = await res.json()
+        console.error('Error creating role:', errData)
+        alert(`Error: ${errData.msg || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Submission error:', error)
+      alert('Failed to submit role')
     }
-  }, [selectedCheckbox])
+  }
 
   return (
     <Dialog fullWidth maxWidth='md' scroll='body' open={open} onClose={handleClose} closeAfterTransition={false}>
@@ -102,7 +165,7 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
           Set Role Permissions
         </Typography>
       </DialogTitle>
-      <form onSubmit={e => e.preventDefault()}>
+      <form onSubmit={e => { e.preventDefault(); handleSubmit(); }}>
         <DialogContent className='overflow-visible pbs-0 sm:pbe-6 sm:pli-16'>
           <IconButton onClick={handleClose} className='absolute block-start-4 inline-end-4'>
             <i className='ri-close-line text-textSecondary' />
@@ -112,8 +175,8 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
             variant='outlined'
             fullWidth
             placeholder='Enter Role Name'
-            defaultValue={title}
-            onChange={e => e.target.value}
+            value={roleName}
+            onChange={e => setRoleName(e.target.value)}
           />
           <Typography variant='h5' className='plb-5 sm:plb-6'>
             Role Permissions
@@ -124,7 +187,7 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
                 <tr>
                   <th className='pis-0'>
                     <Typography className='font-medium whitespace-nowrap flex-grow min-is-[225px]' color='text.primary'>
-                      Administrator Access
+                      Page Permissions
                     </Typography>
                   </th>
                   <th className='!text-end pie-0'>
@@ -134,82 +197,47 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
                         <Checkbox
                           onChange={handleSelectAllCheckbox}
                           indeterminate={isIndeterminateCheckbox}
-                          checked={selectedCheckbox.length === defaultData.length * 3}
+                          checked={isSelectAll}
                         />
                       }
                       label='Select All'
                     />
                   </th>
                 </tr>
-                {defaultData.map((item, index) => {
-                  const id = (typeof item === 'string' ? item : item.title).toLowerCase().split(' ').join('-')
-
+                {pages.map((page, index) => {
                   return (
-                    <tr key={index}>
+                    <tr key={page.id || index}>
                       <td className='pis-0'>
                         <Typography
                           className='font-medium whitespace-nowrap flex-grow min-is-[225px]'
                           color='text.primary'
                         >
-                          {typeof item === 'object' ? item.title : item}
+                          {page.title}
                         </Typography>
                       </td>
                       <td className='!text-end pie-0'>
-                        {typeof item === 'object' ? (
-                          <FormGroup className='flex-row justify-end flex-nowrap gap-6'>
-                            <FormControlLabel
-                              className='mie-0'
-                              control={<Checkbox checked={item.read} />}
-                              label='Read'
-                            />
-                            <FormControlLabel
-                              className='mie-0'
-                              control={<Checkbox checked={item.write} />}
-                              label='Write'
-                            />
-                            <FormControlLabel
-                              className='mie-0'
-                              control={<Checkbox checked={item.select} />}
-                              label='Select'
-                            />
-                          </FormGroup>
-                        ) : (
-                          <FormGroup className='flex-row justify-end flex-nowrap gap-6'>
-                            <FormControlLabel
-                              className='mie-0'
-                              control={
-                                <Checkbox
-                                  id={`${id}-read`}
-                                  onChange={() => togglePermission(`${id}-read`)}
-                                  checked={selectedCheckbox.includes(`${id}-read`)}
-                                />
-                              }
-                              label='Read'
-                            />
-                            <FormControlLabel
-                              className='mie-0'
-                              control={
-                                <Checkbox
-                                  id={`${id}-write`}
-                                  onChange={() => togglePermission(`${id}-write`)}
-                                  checked={selectedCheckbox.includes(`${id}-write`)}
-                                />
-                              }
-                              label='Write'
-                            />
-                            <FormControlLabel
-                              className='mie-0 text-textPrimary'
-                              control={
-                                <Checkbox
-                                  id={`${id}-create`}
-                                  onChange={() => togglePermission(`${id}-create`)}
-                                  checked={selectedCheckbox.includes(`${id}-create`)}
-                                />
-                              }
-                              label='Create'
-                            />
-                          </FormGroup>
-                        )}
+                        <FormGroup className='flex-row justify-end flex-nowrap gap-6'>
+                          <FormControlLabel
+                            className='mie-0'
+                            control={
+                              <Checkbox
+                                checked={permissions[page.page_key]?.read || false}
+                                onChange={() => togglePermission(page.page_key, 'read')}
+                              />
+                            }
+                            label='Read'
+                          />
+                          <FormControlLabel
+                            className='mie-0'
+                            control={
+                              <Checkbox
+                                checked={permissions[page.page_key]?.create || false}
+                                onChange={() => togglePermission(page.page_key, 'create')}
+                              />
+                            }
+                            label='Create'
+                          />
+                        </FormGroup>
                       </td>
                     </tr>
                   )
@@ -219,10 +247,10 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
           </div>
         </DialogContent>
         <DialogActions className='justify-center pbs-0 sm:pbe-16 sm:pli-16'>
-          <Button variant='contained' type='submit' onClick={handleClose}>
+          <Button variant='contained' type='submit'>
             Submit
           </Button>
-          <Button variant='outlined' type='reset' color='secondary' onClick={handleClose}>
+          <Button variant='outlined' type='button' color='secondary' onClick={handleClose}>
             Cancel
           </Button>
         </DialogActions>

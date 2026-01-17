@@ -141,14 +141,14 @@ exports.verifyOtp = async (req, res) => {
 
     // Fetch permissions for this role from role_permissions table
     const [permissions] = await db.query(
-      'SELECT page_name, can_read, can_create FROM role_permissions WHERE role_id = ?',
+      'SELECT page_key, can_read, can_create FROM role_permissions WHERE role_id = ?',
       [user.role_id]
     );
 
     // Structure permissions as: { "Page Name": { "read": true, "create": false } }
     const permissionsObject = {};
     permissions.forEach((perm) => {
-      permissionsObject[perm.page_name] = {
+      permissionsObject[perm.page_key] = {
         read: Boolean(perm.can_read),
         create: Boolean(perm.can_create),
       };
@@ -175,16 +175,11 @@ exports.verifyOtp = async (req, res) => {
         });
       }
     );
-    token,
-      role: roleName,
-        permissions: permissionsObject,
-        });
-}
-    );
+
   } catch (err) {
-  console.error(err.message);
-  res.status(500).send('Server Error');
-}
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
 };
 
 exports.resendOtp = async (req, res) => {

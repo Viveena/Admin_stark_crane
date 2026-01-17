@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { getPage, updatePage, toggleVisibility } = require('../controllers/pagesController');
+const { getAllPages, getPage, updatePage, toggleVisibility } = require('../controllers/pagesController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const dynamicCheckPermission = require('../middlewares/dynamicPermissionMiddleware');
 
@@ -8,6 +8,14 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
+
+
+/**
+ * GET /api/pages
+ * Fetch all pages
+ * Requires authentication
+ */
+router.get('/', getAllPages);
 
 /**
  * GET /api/pages/:pageKey
@@ -24,6 +32,8 @@ router.get(
       .isLength({ max: 100 })
       .withMessage('Page key must not exceed 100 characters'),
   ],
+  // Remove dynamicCheckPermission for fetching single page details if it's general access, 
+  // OR keep it if specifics are needed. Assuming keeping it is correct for now.
   dynamicCheckPermission('view'),
   getPage
 );

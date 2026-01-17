@@ -41,7 +41,7 @@ const dynamicCheckPermission = (action) => {
       if (userRole === 'USER') {
         // Get role_id from role name
         const [roles] = await db.query('SELECT id FROM roles WHERE name = ?', [userRole]);
-        
+
         if (roles.length === 0) {
           return res.status(403).json({ msg: 'Role not found. Access denied.' });
         }
@@ -49,32 +49,33 @@ const dynamicCheckPermission = (action) => {
         const roleId = roles[0].id;
 
         // Check permission in role_permissions table
+        // Changed column names to match DB schema (can_read, can_create) and page_key
         const [permissions] = await db.query(
-          'SELECT can_view, can_edit FROM role_permissions WHERE role_id = ? AND page_key = ?',
+          'SELECT can_read, can_create FROM role_permissions WHERE role_id = ? AND page_key = ?',
           [roleId, pageKey]
         );
 
         // If no permission record exists, deny access
         if (permissions.length === 0) {
-          return res.status(403).json({ 
-            msg: `No permission found for ${pageKey}. Access denied.` 
+          return res.status(403).json({
+            msg: `No permission found for ${pageKey}. Access denied.`
           });
         }
 
         const permission = permissions[0];
-        const hasViewPermission = Boolean(permission.can_view);
-        const hasEditPermission = Boolean(permission.can_edit);
+        const hasViewPermission = Boolean(permission.can_read);
+        const hasEditPermission = Boolean(permission.can_create);
 
         // Check specific action permission
         if (action === 'view' && !hasViewPermission) {
-          return res.status(403).json({ 
-            msg: `View permission denied for ${pageKey}.` 
+          return res.status(403).json({
+            msg: `View permission denied for ${pageKey}.`
           });
         }
 
         if (action === 'edit' && !hasEditPermission) {
-          return res.status(403).json({ 
-            msg: `Edit permission denied for ${pageKey}.` 
+          return res.status(403).json({
+            msg: `Edit permission denied for ${pageKey}.`
           });
         }
 
