@@ -1,5 +1,5 @@
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Button from '@mui/material/Button'
@@ -57,6 +57,27 @@ const AddUserDrawer = (props: Props) => {
 
   // States
   const [formData, setFormData] = useState<FormNonValidateType>(initialData)
+  const [roles, setRoles] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch('/api/roles', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setRoles(data.roles || [])
+        }
+      } catch (error) {
+        console.error('Error fetching roles:', error)
+      }
+    }
+    fetchRoles()
+  }, [])
 
   // Hooks
   const {
@@ -75,25 +96,45 @@ const AddUserDrawer = (props: Props) => {
     }
   })
 
-  const onSubmit = (data: FormValidateType) => {
-    const newUser: UsersType = {
-      id: (userData?.length && userData?.length + 1) || 1,
-      avatar: `/images/avatars/${Math.floor(Math.random() * 8) + 1}.png`,
-      fullName: data.fullName,
-      username: data.username,
-      email: data.email,
-      role: data.role,
-      status: data.status,
-      company: formData.company,
-      country: formData.country,
-      contact: formData.contact,
-      password: formData.password
-    }
+  const onSubmit = async (data: FormValidateType) => {
+    try {
+      const token = localStorage.getItem('token')
+      const payload = {
+        full_name: data.fullName,
+        username: data.username,
+        email: data.email,
+        password: formData.password,
+        role_id: data.role, // role is now role_id from the Select
+        company: formData.company,
+        country: formData.country,
+        contact: formData.contact,
+        status: data.status
+      }
 
-    setData([...(userData ?? []), newUser])
-    handleClose()
-    setFormData(initialData)
-    resetForm({ fullName: '', username: '', email: '', role: '', plan: '', status: '' })
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const responseData = await response.json()
+
+      if (response.ok) {
+        // Update local state with the returned user
+        setData([...(userData ?? []), responseData.user])
+        handleClose()
+        setFormData(initialData)
+        resetForm({ fullName: '', username: '', email: '', role: '', plan: '', status: '' })
+      } else {
+        alert(`Error: ${responseData.msg || 'Failed to create user'}`)
+      }
+    } catch (error) {
+      console.error('Error creating user:', error)
+      alert('Error creating user')
+    }
   }
 
   const handleReset = () => {
@@ -163,7 +204,7 @@ const AddUserDrawer = (props: Props) => {
             )}
           />
           <FormControl fullWidth>
-            <InputLabel id='country' error={Boolean(errors.role)}>
+            <InputLabel id='role' error={Boolean(errors.role)}>
               Select Role
             </InputLabel>
             <Controller
@@ -172,11 +213,11 @@ const AddUserDrawer = (props: Props) => {
               rules={{ required: true }}
               render={({ field }) => (
                 <Select label='Select Role' {...field} error={Boolean(errors.role)}>
-                  <MenuItem value='admin'>Admin</MenuItem>
-                  <MenuItem value='author'>Author</MenuItem>
-                  <MenuItem value='editor'>Editor</MenuItem>
-                  <MenuItem value='maintainer'>Maintainer</MenuItem>
-                  <MenuItem value='subscriber'>Subscriber</MenuItem>
+                  {roles.map((role: any) => (
+                    <MenuItem key={role.id} value={role.id}>
+                      {role.name}
+                    </MenuItem>
+                  ))}
                 </Select>
               )}
             />

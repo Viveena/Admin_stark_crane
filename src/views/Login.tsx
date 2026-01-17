@@ -103,12 +103,13 @@ const Login = ({ mode }: { mode: Mode }) => {
   const {
     control,
     handleSubmit,
+    getValues,
     formState: { errors }
   } = useForm<FormData>({
     resolver: valibotResolver(schema),
     defaultValues: {
-      email: 'admin@materialize.com',
-      password: 'admin'
+      email: '',
+      password: ''
     }
   })
 
@@ -124,15 +125,102 @@ const Login = ({ mode }: { mode: Mode }) => {
 
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
-  const onLoginSubmit = (data: FormData) => {
-    // Simulate login validation here if needed
-    setStep('otp')
+  const onLoginSubmit = async (data: FormData) => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+
+      // Try to parse JSON, if fails, it might be HTML (404/500)
+      let resData;
+      try {
+        resData = await response.json()
+      } catch (e) {
+        console.error('Failed to parse response JSON:', e)
+        const text = await response.text().catch(() => '')
+        alert('Server Error: The server returned an invalid response (likely HTML/404). Please restart the Next.js server.')
+        return
+      }
+
+      if (response.ok) {
+        // Check if token is present (Bypass login)
+        if (resData.token) {
+          localStorage.setItem('token', resData.token)
+          // Store user data if needed, or just redirect
+          if (resData.role) {
+            localStorage.setItem('userRole', resData.role)
+          }
+          router.push('/')
+        } else {
+          // Normal OTP flow
+          setStep('otp')
+        }
+      } else {
+        alert(resData.msg || 'Login failed')
+        setErrorState({ message: [resData.msg || 'Login failed'] })
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      alert('Network Error: Could not connect to login API.')
+      setErrorState({ message: ['Something went wrong. Please try again.'] })
+    }
   }
 
-  const onOtpSubmit = (e: FormEvent) => {
+  const onOtpSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (otp && otp.length === 6) {
-      router.push('/')
+      try {
+        const email = getValues('email')
+        const response = await fetch('/api/auth/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, otp })
+        })
+
+        const resData = await response.json()
+
+        if (response.ok) {
+          localStorage.setItem('token', resData.token)
+          if (resData.role) {
+            localStorage.setItem('userRole', resData.role)
+          }
+          router.push('/')
+        } else {
+          // Handle OTP error (maybe show an alert or set error state)
+          alert(resData.msg || 'Invalid OTP')
+        }
+      } catch (error) {
+        console.error('OTP Verification error:', error)
+        alert('Verification failed')
+      }
+    }
+  }
+
+  const handleResendOtp = async (e: any) => {
+    e.preventDefault()
+    try {
+      const email = getValues('email')
+      const response = await fetch('/api/auth/resend-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      })
+
+      if (response.ok) {
+        alert('OTP Resent successfully')
+      } else {
+        alert('Failed to resend OTP')
+      }
+    } catch (error) {
+      console.error('Resend OTP error:', error)
     }
   }
 
@@ -169,8 +257,8 @@ const Login = ({ mode }: { mode: Mode }) => {
               </div>
               <Alert icon={false} className='bg-[var(--mui-palette-primary-lightOpacity)]'>
                 <Typography variant='body2' color='primary.main'>
-                  Email: <span className='font-medium'>admin@materialize.com</span> / Pass:{' '}
-                  <span className='font-medium'>admin</span>
+                  Email: <span className='font-medium'>admin@starkcrane.com</span> / Pass:{' '}
+                  <span className='font-medium'>admin123</span>
                 </Typography>
               </Alert>
 
@@ -268,10 +356,7 @@ const Login = ({ mode }: { mode: Mode }) => {
                 </Button>
                 <div className='flex justify-center items-center flex-wrap gap-2'>
                   <Typography>Didn&#39;t get the code?</Typography>
-                  <Typography color='primary.main' component={Link} href='/' onClick={handleResend => {
-                    // logic to resend otp
-                    handleResend.preventDefault()
-                  }}>
+                  <Typography color='primary.main' component={Link} href='/' onClick={handleResendOtp}>
                     Resend
                   </Typography>
                 </div>
@@ -283,6 +368,8 @@ const Login = ({ mode }: { mode: Mode }) => {
       </div>
     </div>
   )
+
+
 }
 
 export default Login

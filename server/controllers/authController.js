@@ -51,39 +51,10 @@ exports.login = async (req, res) => {
     return false;
   };
 
-  // Superadmin Bypass - Environment Variables
-  if (
-    process.env.SUPERADMIN_EMAIL &&
-    process.env.SUPERADMIN_PASSWORD &&
-    email === process.env.SUPERADMIN_EMAIL &&
-    password === process.env.SUPERADMIN_PASSWORD
-  ) {
-    const payload = {
-      user: {
-        id: 1, // Using fixed ID 1 for Superadmin
-        role: 'SUPER_ADMIN',
-      },
-    };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-    return res.json({ token, role: 'SUPER_ADMIN' });
-  }
-
-  // Admin Bypass - Environment Variables
-  if (
-    process.env.ADMIN_EMAIL &&
-    process.env.ADMIN_PASSWORD &&
-    email === process.env.ADMIN_EMAIL &&
-    password === process.env.ADMIN_PASSWORD
-  ) {
-    const payload = {
-      user: {
-        id: 2, // Using fixed ID 2 for Admin
-        role: 'ADMIN',
-      },
-    };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-    return res.json({ token, role: 'ADMIN' });
-  }
+  // Bypass removed to enforce DB + OTP flow for all users
+  // if (
+  //   process.env.SUPERADMIN_EMAIL && ...
+  // ) { ... }
 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -170,16 +141,16 @@ exports.verifyOtp = async (req, res) => {
 
     // Fetch permissions for this role from role_permissions table
     const [permissions] = await db.query(
-      'SELECT page_key, can_view, can_edit FROM role_permissions WHERE role_id = ?',
+      'SELECT page_name, can_read, can_create FROM role_permissions WHERE role_id = ?',
       [user.role_id]
     );
 
-    // Structure permissions as: { "page_key": { "view": true, "edit": false } }
+    // Structure permissions as: { "Page Name": { "read": true, "create": false } }
     const permissionsObject = {};
     permissions.forEach((perm) => {
-      permissionsObject[perm.page_key] = {
-        view: Boolean(perm.can_view),
-        edit: Boolean(perm.can_edit),
+      permissionsObject[perm.page_name] = {
+        read: Boolean(perm.can_read),
+        create: Boolean(perm.can_create),
       };
     });
 
@@ -200,14 +171,20 @@ exports.verifyOtp = async (req, res) => {
         res.json({
           token,
           role: roleName,
-          permissions: permissionsObject,
+          permissions: permissionsObject
         });
       }
     );
+    token,
+      role: roleName,
+        permissions: permissionsObject,
+        });
+}
+    );
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
+  console.error(err.message);
+  res.status(500).send('Server Error');
+}
 };
 
 exports.resendOtp = async (req, res) => {

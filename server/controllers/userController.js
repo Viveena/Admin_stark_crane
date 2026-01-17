@@ -52,13 +52,13 @@ exports.createUser = async (req, res) => {
     // Insert new user
     const [result] = await db.query(
       `INSERT INTO users (full_name, username, email, password, role_id, status, company, country, contact, created_by) 
-       VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
-      [full_name, username, email, hashedPassword, role_id, company || null, country || null, contact || null, createdBy]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [full_name, username, email, hashedPassword, role_id, status || 'active', company || null, country || null, contact || null, createdBy]
     );
 
     // Fetch the created user with role name
     const [newUsers] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role_name
+      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        WHERE u.id = ?`,
@@ -86,7 +86,7 @@ exports.createUser = async (req, res) => {
 exports.getUsers = async (req, res) => {
   try {
     const [users] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, u.updated_at, r.name as role_name
+      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, u.updated_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        ORDER BY u.created_at DESC`
@@ -119,8 +119,8 @@ exports.toggleUserStatus = async (req, res) => {
     // Validate status value
     const validStatuses = ['active', 'inactive', 'suspended'];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        msg: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+      return res.status(400).json({
+        msg: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
       });
     }
 
@@ -146,7 +146,7 @@ exports.toggleUserStatus = async (req, res) => {
          WHERE u.id = ?`,
         [userId]
       );
-      
+
       if (targetUser[0] && targetUser[0].role_name === 'SUPER_ADMIN') {
         return res.status(403).json({ msg: 'Cannot modify SUPER_ADMIN status' });
       }
@@ -157,7 +157,7 @@ exports.toggleUserStatus = async (req, res) => {
 
     // Fetch updated user with role name
     const [updatedUsers] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.updated_at, r.name as role_name
+      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.updated_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        WHERE u.id = ?`,

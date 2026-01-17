@@ -1,13 +1,18 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { createUser, getUsers, toggleUserStatus } = require('../controllers/userController');
+const { createUser, getUsers, toggleUserStatus, getMe } = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminOnlyMiddleware = require('../middlewares/adminOnlyMiddleware');
 
 const router = express.Router();
 
-// All routes require authentication and admin privileges
+// All routes require authentication
 router.use(authMiddleware);
+
+// Get current user (must be before /:id routes to avoid conflict if id is checked loosely)
+router.get('/me', getMe);
+
+// All subsequent routes require admin privileges
 router.use(adminOnlyMiddleware);
 
 /**
