@@ -21,6 +21,7 @@ import Paper from '@mui/material/Paper'
 
 // Component Imports
 import MissionDrawer from './MissionDrawer'
+import usePermission from '@/hooks/usePermission'
 
 type MissionItem = {
     title: string
@@ -32,6 +33,7 @@ const AboutMission = () => {
     const [missionItems, setMissionItems] = useState<MissionItem[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const { canCreate } = usePermission('about-us')
 
     // Load data
     useEffect(() => {
@@ -87,14 +89,16 @@ const AboutMission = () => {
                 <CardHeader
                     title='Mission, Vision & Values'
                     action={
-                        <Button
-                            variant='contained'
-                            onClick={handleAdd}
-                            disabled={missionItems.length >= 3}
-                            startIcon={<i className="ri-add-line" />}
-                        >
-                            Add New Item
-                        </Button>
+                        canCreate && (
+                            <Button
+                                variant='contained'
+                                onClick={handleAdd}
+                                disabled={missionItems.length >= 3}
+                                startIcon={<i className="ri-add-line" />}
+                            >
+                                Add New Item
+                            </Button>
+                        )
                     }
                 />
                 <Divider />

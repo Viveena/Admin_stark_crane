@@ -70,7 +70,11 @@ const AddUserDrawer = (props: Props) => {
         })
         if (response.ok) {
           const data = await response.json()
-          setRoles(data.roles || [])
+          // Filter out default system roles
+          const filteredRoles = (data.roles || []).filter((r: any) =>
+            !['SUPER_ADMIN', 'ADMIN', 'USER'].includes(r.name)
+          )
+          setRoles(filteredRoles)
         }
       } catch (error) {
         console.error('Error fetching roles:', error)

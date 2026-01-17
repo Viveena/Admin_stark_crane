@@ -23,12 +23,14 @@ import Avatar from '@mui/material/Avatar'
 
 import CaseStudyEditor, { CaseStudyPost } from '../CaseStudyEditor'
 import CaseStudyLandingSettings from '../CaseStudyLandingSettings'
+import usePermission from '@/hooks/usePermission'
 
 const CaseStudyList = () => {
     const [posts, setPosts] = useState<CaseStudyPost[]>([])
     const [editorOpen, setEditorOpen] = useState(false)
     const [landingOpen, setLandingOpen] = useState(false)
     const [selectedPost, setSelectedPost] = useState<CaseStudyPost | undefined>(undefined)
+    const { canCreate } = usePermission('case-study')
 
     // Pagination and Search State
     const [page, setPage] = useState(0)
@@ -112,9 +114,11 @@ const CaseStudyList = () => {
                         <Button variant='outlined' onClick={() => setLandingOpen(true)}>
                             Page Config
                         </Button>
-                        <Button variant='contained' onClick={() => { setSelectedPost(undefined); setEditorOpen(true); }}>
-                            Add Case Study
-                        </Button>
+                        {canCreate && (
+                            <Button variant='contained' onClick={() => { setSelectedPost(undefined); setEditorOpen(true); }}>
+                                Add Case Study
+                            </Button>
+                        )}
                     </div>
                 }
             />

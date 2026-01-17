@@ -24,6 +24,7 @@ import InputAdornment from '@mui/material/InputAdornment'
 
 import NewsEditor from '../NewsEditor'
 import AddCategoryDrawer from './AddCategoryDrawer'
+import usePermission from '@/hooks/usePermission'
 
 type NewsPost = {
     id: string
@@ -39,6 +40,7 @@ const NewsList = () => {
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
     const [newsDrawerOpen, setNewsDrawerOpen] = useState(false)
     const [selectedNews, setSelectedNews] = useState<NewsPost | undefined>(undefined)
+    const { canCreate } = usePermission('news')
 
     // Pagination and Search State
     const [page, setPage] = useState(0)
@@ -122,9 +124,11 @@ const NewsList = () => {
                         <Button variant='outlined' onClick={() => setCategoryDrawerOpen(true)}>
                             Manage Categories
                         </Button>
-                        <Button variant='contained' onClick={() => { setSelectedNews(undefined); setNewsDrawerOpen(true); }}>
-                            Add News
-                        </Button>
+                        {canCreate && (
+                            <Button variant='contained' onClick={() => { setSelectedNews(undefined); setNewsDrawerOpen(true); }}>
+                                Add News
+                            </Button>
+                        )}
                     </div>
                 }
             />

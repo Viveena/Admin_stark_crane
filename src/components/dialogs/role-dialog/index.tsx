@@ -50,8 +50,13 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
   useEffect(() => {
     const fetchPages = async () => {
       try {
+        const token = localStorage.getItem('token')
         // Adjust API URL if needed, assuming relative path works or use process.env
-        const res = await fetch('/api/pages')
+        const res = await fetch('/api/pages', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         if (res.ok) {
           const data = await res.json()
           setPages(data.pages || [])
@@ -132,10 +137,12 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
 
       console.log('Submitting role:', payload)
 
+      const token = localStorage.getItem('token')
       const res = await fetch('/api/roles', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       })

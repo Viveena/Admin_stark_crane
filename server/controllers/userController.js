@@ -21,6 +21,7 @@ exports.createUser = async (req, res) => {
     company,
     country,
     contact,
+    status,
   } = req.body;
 
   // Get the admin ID who is creating this user
@@ -98,7 +99,7 @@ exports.getUsers = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching users:', error);
-    res.status(500).json({ msg: 'Server error while fetching users' });
+    res.status(500).json({ msg: 'Server error while fetching users', error: error.message });
   }
 };
 

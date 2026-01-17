@@ -23,6 +23,7 @@ import InputAdornment from '@mui/material/InputAdornment'
 
 import EventsEditor from '../EventsEditor'
 import AddCategoryDrawer from './AddCategoryDrawer'
+import usePermission from '@/hooks/usePermission'
 
 type EventPost = {
     id: string
@@ -39,6 +40,7 @@ const EventsList = () => {
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
     const [eventDrawerOpen, setEventDrawerOpen] = useState(false)
     const [selectedEvent, setSelectedEvent] = useState<EventPost | undefined>(undefined)
+    const { canCreate } = usePermission('events')
 
     // Pagination and Search State
     const [page, setPage] = useState(0)
@@ -123,9 +125,11 @@ const EventsList = () => {
                         <Button variant='outlined' onClick={() => setCategoryDrawerOpen(true)}>
                             Manage Categories
                         </Button>
-                        <Button variant='contained' onClick={() => { setSelectedEvent(undefined); setEventDrawerOpen(true); }}>
-                            Add Event
-                        </Button>
+                        {canCreate && (
+                            <Button variant='contained' onClick={() => { setSelectedEvent(undefined); setEventDrawerOpen(true); }}>
+                                Add Event
+                            </Button>
+                        )}
                     </div>
                 }
             />

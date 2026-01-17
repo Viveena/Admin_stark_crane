@@ -1,5 +1,9 @@
 'use client'
 
+// React Imports
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -23,16 +27,43 @@ type CardDataType = {
   totalUsers: number
 }
 
-// Vars
-const cardData: CardDataType[] = [
+// Vars - Keeping 2 template cards as requested
+const templateCards: CardDataType[] = [
   { totalUsers: 4, title: 'Administrator', avatars: ['1.png', '2.png', '3.png', '4.png'] },
-  { totalUsers: 7, title: 'Editor', avatars: ['5.png', '6.png', '7.png'] },
-  { totalUsers: 5, title: 'Users', avatars: ['4.png', '5.png', '6.png'] },
-  { totalUsers: 6, title: 'Support', avatars: ['1.png', '2.png', '3.png'] },
-  { totalUsers: 10, title: 'Restricted User', avatars: ['4.png', '5.png', '6.png'] }
+  { totalUsers: 7, title: 'Editor', avatars: ['5.png', '6.png', '7.png'] }
 ]
 
 const RoleCards = () => {
+  const [cards, setCards] = useState<CardDataType[]>(templateCards)
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const res = await fetch('/api/roles', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const dynamicRoles = (data.roles || [])
+            .filter((r: any) => !['SUPER_ADMIN', 'ADMIN', 'USER'].includes(r.name))
+            .map((r: any) => ({
+              title: r.name,
+              totalUsers: 0, // Placeholder as we don't have user count per role API yet
+              avatars: ['1.png', '2.png'] // Placeholder avatars
+            }))
+
+          setCards([...templateCards, ...dynamicRoles])
+        }
+      } catch (error) {
+        console.error('Failed to fetch roles', error)
+      }
+    }
+    fetchRoles()
+  }, [])
+
   // Vars
   const typographyProps: TypographyProps = {
     children: 'Edit Role',
@@ -70,7 +101,7 @@ const RoleCards = () => {
   return (
     <>
       <Grid container spacing={6}>
-        {cardData.map((item, index) => (
+        {cards.map((item, index) => (
           <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={index}>
             <Card>
               <CardContent className='flex flex-col gap-4'>
@@ -101,7 +132,11 @@ const RoleCards = () => {
           </Grid>
         ))}
         <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <OpenDialogOnElementClick element={Card} elementProps={CardProps} dialog={RoleDialog} />
+          <OpenDialogOnElementClick
+            element={Card}
+            elementProps={CardProps}
+            dialog={RoleDialog}
+          />
         </Grid>
       </Grid>
     </>

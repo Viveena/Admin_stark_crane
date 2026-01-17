@@ -45,6 +45,7 @@ const BlogList = () => {
     const [editDrawerOpen, setEditDrawerOpen] = useState(false)
     const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null)
 
+    const { canCreate } = usePermission('blogs')
     const router = useRouter()
 
     const fetchPosts = () => {
@@ -115,13 +116,15 @@ const BlogList = () => {
                                 )
                             }}
                         />
-                        <Button
-                            variant='contained'
-                            startIcon={<i className='ri-add-line' />}
-                            onClick={() => router.push('/apps/blog/write')}
-                        >
-                            Add Blog
-                        </Button>
+                        {canCreate && (
+                            <Button
+                                variant='contained'
+                                startIcon={<i className='ri-add-line' />}
+                                onClick={() => router.push('/apps/blog/write')}
+                            >
+                                Add Blog
+                            </Button>
+                        )}
                     </div>
                 }
             />

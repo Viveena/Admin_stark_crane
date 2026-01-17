@@ -22,6 +22,7 @@ import Chip from '@mui/material/Chip'
 
 // Component Imports
 import HistoryDrawer from './HistoryDrawer'
+import usePermission from '@/hooks/usePermission'
 
 type HistoryItem = {
     heading: string
@@ -34,6 +35,7 @@ const AboutHistory = () => {
     const [historyItems, setHistoryItems] = useState<HistoryItem[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const { canCreate } = usePermission('about-us')
 
     // Load data
     useEffect(() => {
@@ -90,14 +92,16 @@ const AboutHistory = () => {
                 <CardHeader
                     title='History & Business Vertical'
                     action={
-                        <Button
-                            variant='contained'
-                            onClick={handleAdd}
-                            disabled={historyItems.length >= 4}
-                            startIcon={<i className="ri-add-line" />}
-                        >
-                            Add New Item
-                        </Button>
+                        canCreate && (
+                            <Button
+                                variant='contained'
+                                onClick={handleAdd}
+                                disabled={historyItems.length >= 4}
+                                startIcon={<i className="ri-add-line" />}
+                            >
+                                Add New Item
+                            </Button>
+                        )
                     }
                 />
                 <Divider />
