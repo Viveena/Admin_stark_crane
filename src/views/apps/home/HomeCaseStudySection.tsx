@@ -24,7 +24,7 @@ const CASE_STUDY_OPTIONS = ['Steel Plant Project', 'Port Crane Installation', 'A
 
 const HomeCaseStudySection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, saveSection } = usePageSection({
+    const { data: sectionData, loading, error, saveSection, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'casestudy'
     });
@@ -73,7 +73,7 @@ const HomeCaseStudySection = () => {
                                     <FormControlLabel control={<Switch checked={field.value} onChange={field.onChange} />} label={field.value ? "Visible" : "Hidden"} />
                                 )}
                             />
-                            <Button variant='contained' type='submit' disabled={isSaving}>
+                            <Button variant='contained' type='submit' disabled={isSaving || !canEdit}>
                                 {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>

@@ -42,7 +42,7 @@ const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
 
 const HomeAboutSection = () => {
     // Hook for API interaction
-    const { data: sectionData, loading: dataLoading, error, meta, saveSection, uploadImage } = usePageSection({
+    const { data: sectionData, loading: dataLoading, error, meta, saveSection, uploadImage, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'about'
     })
@@ -151,7 +151,7 @@ const HomeAboutSection = () => {
                             <Button
                                 variant='contained'
                                 type='submit'
-                                disabled={isSaving || dataLoading}
+                                disabled={isSaving || dataLoading || !canEdit}
                                 startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : null}
                             >
                                 {isSaving ? 'Saving...' : 'Save'}

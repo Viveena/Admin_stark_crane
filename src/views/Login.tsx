@@ -126,6 +126,47 @@ const Login = ({ mode }: { mode: Mode }) => {
 
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
+
+  const getHomeRoute = (role: string, permissions: any) => {
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') return '/'
+
+    const permissionPages = [
+      { key: 'Home Page', url: '/apps/home' },
+      { key: 'Products', url: '/apps/ecommerce/products/list' },
+      { key: 'Service', url: '/apps/services' },
+      { key: 'Location', url: '/apps/location/list' },
+      { key: 'Industry', url: '/apps/industry/list' },
+      { key: 'Parts', url: '/apps/parts/list' },
+      { key: 'Blogs', url: '/apps/blog/list' }, // Prefer list over edit for better UX
+      { key: 'News', url: '/apps/news' },
+      { key: 'Events', url: '/apps/events/list' },
+      { key: 'Case Study', url: '/apps/casestudy/list' },
+      { key: 'About Us', url: '/apps/about' },
+      { key: 'Career', url: '/apps/career/list' }, // Prefer list
+      { key: 'Contact', url: '/apps/contact' },
+      { key: 'FAQ', url: '/apps/faq' },
+      { key: 'Chat', url: '/apps/chat' },
+      { key: 'Crane Selector', url: '/apps/dashboard' },
+      { key: 'Other Pages', url: '/apps/data-protection' }
+    ]
+
+    for (const page of permissionPages) {
+      const pageKey = page.key
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+
+      if (permissions[pageKey]?.read) {
+        return page.url
+      }
+    }
+
+    return '/'
+  }
+
   const onLoginSubmit = async (data: FormData) => {
     try {
       const response = await fetch('/api/auth/login', {
@@ -155,7 +196,13 @@ const Login = ({ mode }: { mode: Mode }) => {
           if (resData.role) {
             localStorage.setItem('userRole', resData.role)
           }
-          router.push('/')
+          let permissions = {};
+          if (resData.permissions) {
+            localStorage.setItem('userPermissions', JSON.stringify(resData.permissions))
+            permissions = resData.permissions;
+          }
+
+          router.push(getHomeRoute(resData.role || '', permissions))
         } else {
           // Normal OTP flow
           if (resData.email) {
@@ -194,10 +241,13 @@ const Login = ({ mode }: { mode: Mode }) => {
           if (resData.role) {
             localStorage.setItem('userRole', resData.role)
           }
+          let permissions = {};
           if (resData.permissions) {
             localStorage.setItem('userPermissions', JSON.stringify(resData.permissions))
+            permissions = resData.permissions;
           }
-          router.push('/')
+
+          router.push(getHomeRoute(resData.role || '', permissions))
         } else {
           // Handle OTP error (maybe show an alert or set error state)
           alert(resData.msg || 'Invalid OTP')

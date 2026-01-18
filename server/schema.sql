@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS pages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Role permissions table
--- Role permissions table
+
 CREATE TABLE IF NOT EXISTS role_permissions (
     role_id INT NOT NULL,
     page_name VARCHAR(100) NOT NULL,

@@ -51,8 +51,16 @@ const migrate = async () => {
         const superAdminId = 1;
         // Check if role 1 exists
         const [roles] = await db.query('SELECT id FROM roles WHERE id = ?', [superAdminId]);
+
+        // Correct keys matching pagesController.js
+        const correctPages = [
+            'home', 'product', 'service', 'location', 'industry', 'parts',
+            'blogs', 'events', 'news', 'case_study', 'about', 'career',
+            'contact', 'faq'
+        ];
+
         if (roles.length > 0) {
-            const values = pages.map(page => [superAdminId, slugify(page), true, true]);
+            const values = correctPages.map(page => [superAdminId, page, true, true]);
             await db.query(
                 'INSERT INTO role_permissions (role_id, page_key, can_read, can_create) VALUES ?',
                 [values]

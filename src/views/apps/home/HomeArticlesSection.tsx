@@ -24,7 +24,7 @@ const ARTICLE_OPTIONS = ['Crane Safety Tips', 'Maintenance Guide', 'Choosing the
 
 const HomeArticlesSection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, saveSection } = usePageSection({
+    const { data: sectionData, loading, error, saveSection, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'articles'
     });
@@ -73,7 +73,7 @@ const HomeArticlesSection = () => {
                                     <FormControlLabel control={<Switch checked={field.value} onChange={field.onChange} />} label={field.value ? "Visible" : "Hidden"} />
                                 )}
                             />
-                            <Button variant='contained' type='submit' disabled={isSaving}>
+                            <Button variant='contained' type='submit' disabled={isSaving || !canEdit}>
                                 {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>

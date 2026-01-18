@@ -43,7 +43,7 @@ type ServiceItem = {
 
 const HomeServiceSection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+    const { data: sectionData, loading, error, saveSection, uploadImage, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'services'
     });
@@ -164,7 +164,7 @@ const HomeServiceSection = () => {
                                         />
                                     )}
                                 />
-                                <Button variant='contained' type='submit' disabled={isSaving}>
+                                <Button variant='contained' type='submit' disabled={isSaving || !canEdit}>
                                     Save
                                 </Button>
                             </div>
@@ -209,6 +209,7 @@ const HomeServiceSection = () => {
                                 variant='outlined'
                                 onClick={handleAdd}
                                 startIcon={<i className="ri-add-line" />}
+                                disabled={!canEdit}
                             >
                                 Add Service
                             </Button>
@@ -248,10 +249,10 @@ const HomeServiceSection = () => {
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell align="right">
-                                                    <IconButton size="small" onClick={() => handleEdit(index)} color="primary">
+                                                    <IconButton size="small" onClick={() => handleEdit(index)} color="primary" disabled={!canEdit}>
                                                         <i className="ri-pencil-line" />
                                                     </IconButton>
-                                                    <IconButton size="small" onClick={() => handleDelete(index)} color="error">
+                                                    <IconButton size="small" onClick={() => handleDelete(index)} color="error" disabled={!canEdit}>
                                                         <i className="ri-delete-bin-line" />
                                                     </IconButton>
                                                 </TableCell>

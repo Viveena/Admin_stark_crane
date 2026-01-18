@@ -54,7 +54,7 @@ const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
 
 const HomeHeroSection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'hero'
     });
@@ -164,7 +164,7 @@ const HomeHeroSection = () => {
                                     />
                                 )}
                             />
-                            <Button variant='contained' type='submit' disabled={saveStatus === 'saving'}>
+                            <Button variant='contained' type='submit' disabled={saveStatus === 'saving' || !canEdit}>
                                 {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>

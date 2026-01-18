@@ -24,7 +24,7 @@ const PART_OPTIONS = ['Motor', 'Gearbox', 'Wire Rope', 'Hook', 'Panel', 'Brake']
 
 const HomePartsSection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, saveSection } = usePageSection({
+    const { data: sectionData, loading, error, saveSection, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'parts'
     });
@@ -73,7 +73,7 @@ const HomePartsSection = () => {
                                     <FormControlLabel control={<Switch checked={field.value} onChange={field.onChange} />} label={field.value ? "Visible" : "Hidden"} />
                                 )}
                             />
-                            <Button variant='contained' type='submit' disabled={isSaving}>
+                            <Button variant='contained' type='submit' disabled={isSaving || !canEdit}>
                                 {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>

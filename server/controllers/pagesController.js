@@ -54,8 +54,30 @@ exports.getPage = async (req, res) => {
 
     if (rows.length === 0) {
       // Return empty content structure if no history exists yet
+      // Return empty content structure if no history exists yet
+      // Also check permissions here
+      let canEdit = false;
+      const userRole = req.user.role || 'USER';
+
+      if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+        canEdit = true;
+      } else {
+        const [roles] = await db.query('SELECT id FROM roles WHERE name = ?', [userRole]);
+        if (roles.length > 0) {
+          const roleId = roles[0].id;
+          const [perms] = await db.query(
+            'SELECT can_create FROM role_permissions WHERE role_id = ? AND page_key = ?',
+            [roleId, pageKey]
+          );
+          if (perms.length > 0 && perms[0].can_create) {
+            canEdit = true;
+          }
+        }
+      }
+
       return res.status(200).json({
         page_key: pageKey,
+        permissions: { can_edit: canEdit },
         content: null
       });
     }
@@ -75,16 +97,36 @@ exports.getPage = async (req, res) => {
       }
     }
 
+    // Check permissions
+    let canEdit = false;
+    const userRole = req.user.role || 'USER'; // Default to USER if undefined
+
+    if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+      canEdit = true;
+    } else {
+      // Fetch role_id
+      const [roles] = await db.query('SELECT id FROM roles WHERE name = ?', [userRole]);
+      if (roles.length > 0) {
+        const roleId = roles[0].id;
+        // Check permission - ensure we use the correct column matching dynamicPermissionMiddleware
+        const [perms] = await db.query(
+          'SELECT can_create FROM role_permissions WHERE role_id = ? AND page_key = ?',
+          [roleId, pageKey]
+        );
+        if (perms.length > 0 && perms[0].can_create) {
+          canEdit = true;
+        }
+      }
+    }
+
     res.status(200).json({
       page_key: pageKey,
+      permissions: {
+        can_edit: canEdit
+      },
       content: {
         id: latestRecord.id,
         content_json: contentJson,
-        // Map old structure to new if needed, or valid fields
-        // Frontend expects: content_json, image_url (inside json now?), is_visible (not in schema? assume true or stored in filtered json)
-        // Adjusting response to match frontend expectations roughly, 
-        // but note: schema requested content_data (JSON). 
-        // We will assume content_json from frontend goes into content_data.
         updated_by: latestRecord.edited_by_user_id,
         updated_by_name: latestRecord.edited_by_username,
         updated_at: latestRecord.created_at, // Use creation of record as update time

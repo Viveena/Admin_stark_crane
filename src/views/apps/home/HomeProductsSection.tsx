@@ -38,7 +38,7 @@ const PRODUCT_OPTIONS = [
 
 const HomeProductsSection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, saveSection } = usePageSection({
+    const { data: sectionData, loading, error, saveSection, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'products'
     });
@@ -95,7 +95,7 @@ const HomeProductsSection = () => {
                                     />
                                 )}
                             />
-                            <Button variant='contained' type='submit' disabled={isSaving}>
+                            <Button variant='contained' type='submit' disabled={isSaving || !canEdit}>
                                 {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>

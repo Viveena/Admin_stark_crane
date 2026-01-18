@@ -23,7 +23,7 @@ const EVENT_OPTIONS = ['Annual Meet 2025', 'Product Launch Nov', 'Safety Worksho
 
 const HomeEventsSection = () => {
     // Hook Integration
-    const { data: sectionData, loading, error, saveSection } = usePageSection({
+    const { data: sectionData, loading, error, saveSection, canEdit } = usePageSection({
         pageKey: 'home',
         sectionKey: 'events'
     });
@@ -70,7 +70,7 @@ const HomeEventsSection = () => {
                                     <FormControlLabel control={<Switch checked={field.value} onChange={field.onChange} />} label={field.value ? "Visible" : "Hidden"} />
                                 )}
                             />
-                            <Button variant='contained' type='submit' disabled={isSaving}>
+                            <Button variant='contained' type='submit' disabled={isSaving || !canEdit}>
                                 {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>
