@@ -119,38 +119,38 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
         renderExpandedMenuItemIcon={{ icon: <i className='ri-circle-fill' /> }}
         menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
       >
-        <MenuItem
-          href={`/${locale}/dashboards/crm`}
-          icon={<i className='ri-home-smile-line' />}
-          exactMatch={false}
-          activeUrl='/dashboards/crm'
-        >
-          {dictionary['navigation'].dashboard}
-        </MenuItem>
-
-
-        <MenuSection label={dictionary['navigation'].appsPages}>
-
-
+        {(userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') && (
           <MenuItem
-            href={`/${locale}/apps/user/list`}
-            icon={<i className='ri-user-line' />}
+            href={`/${locale}/dashboards/crm`}
+            icon={<i className='ri-home-smile-line' />}
             exactMatch={false}
-            activeUrl='/apps/user/list'
+            activeUrl='/dashboards/crm'
           >
-            {dictionary['navigation'].user}
+            {dictionary['navigation'].dashboard}
           </MenuItem>
-          <MenuItem
-            href={`/${locale}/apps/roles`}
-            icon={<i className='ri-lock-2-line' />}
-            exactMatch={false}
-            activeUrl='/apps/roles'
-          >
-            {dictionary['navigation'].roles}
-          </MenuItem>
+        )}
 
 
-        </MenuSection>
+        {(userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') && (
+          <MenuSection label={dictionary['navigation'].appsPages}>
+            <MenuItem
+              href={`/${locale}/apps/user/list`}
+              icon={<i className='ri-user-line' />}
+              exactMatch={false}
+              activeUrl='/apps/user/list'
+            >
+              {dictionary['navigation'].user}
+            </MenuItem>
+            <MenuItem
+              href={`/${locale}/apps/roles`}
+              icon={<i className='ri-lock-2-line' />}
+              exactMatch={false}
+              activeUrl='/apps/roles'
+            >
+              {dictionary['navigation'].roles}
+            </MenuItem>
+          </MenuSection>
+        )}
         <MenuSection label={dictionary['navigation'].customPages}>
 
 

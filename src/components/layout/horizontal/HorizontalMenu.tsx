@@ -1,3 +1,6 @@
+// React Imports
+import { useEffect, useState } from 'react'
+
 // Next Imports
 import { useParams } from 'next/navigation'
 
@@ -62,6 +65,17 @@ const HorizontalMenu = ({ dictionary }: { dictionary: Awaited<ReturnType<typeof 
   const { transitionDuration } = verticalNavOptions
   const { lang: locale } = params
 
+  // Role State
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [userRole, setUserRole] = useState<string>('')
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem('userRole')
+    if (storedRole) setUserRole(storedRole)
+  }, [])
+
+  const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+
   return (
     <HorizontalNav
       switchToVertical
@@ -88,23 +102,25 @@ const HorizontalMenu = ({ dictionary }: { dictionary: Awaited<ReturnType<typeof 
           renderExpandedMenuItemIcon: { icon: <i className='ri-circle-fill' /> }
         }}
       >
-        <SubMenu label={dictionary['navigation'].dashboards} icon={<i className='ri-home-smile-line' />}>
-          <MenuItem href={`/${locale}/dashboards/crm`} icon={<i className='ri-pie-chart-2-line' />}>
-            {dictionary['navigation'].crm}
-          </MenuItem>
-          <MenuItem href={`/${locale}/dashboards/analytics`} icon={<i className='ri-bar-chart-line' />}>
-            {dictionary['navigation'].analytics}
-          </MenuItem>
-          <MenuItem href={`/${locale}/dashboards/ecommerce`} icon={<i className='ri-shopping-bag-3-line' />}>
-            {dictionary['navigation'].eCommerce}
-          </MenuItem>
-          <MenuItem href={`/${locale}/dashboards/academy`} icon={<i className='ri-graduation-cap-line' />}>
-            {dictionary['navigation'].academy}
-          </MenuItem>
-          <MenuItem href={`/${locale}/dashboards/logistics`} icon={<i className='ri-car-line' />}>
-            {dictionary['navigation'].logistics}
-          </MenuItem>
-        </SubMenu>
+        {isAdmin && (
+          <SubMenu label={dictionary['navigation'].dashboards} icon={<i className='ri-home-smile-line' />}>
+            <MenuItem href={`/${locale}/dashboards/crm`} icon={<i className='ri-pie-chart-2-line' />}>
+              {dictionary['navigation'].crm}
+            </MenuItem>
+            <MenuItem href={`/${locale}/dashboards/analytics`} icon={<i className='ri-bar-chart-line' />}>
+              {dictionary['navigation'].analytics}
+            </MenuItem>
+            <MenuItem href={`/${locale}/dashboards/ecommerce`} icon={<i className='ri-shopping-bag-3-line' />}>
+              {dictionary['navigation'].eCommerce}
+            </MenuItem>
+            <MenuItem href={`/${locale}/dashboards/academy`} icon={<i className='ri-graduation-cap-line' />}>
+              {dictionary['navigation'].academy}
+            </MenuItem>
+            <MenuItem href={`/${locale}/dashboards/logistics`} icon={<i className='ri-car-line' />}>
+              {dictionary['navigation'].logistics}
+            </MenuItem>
+          </SubMenu>
+        )}
         <SubMenu label={dictionary['navigation'].apps} icon={<i className='ri-mail-open-line' />}>
           <SubMenu label={dictionary['navigation'].eCommerce} icon={<i className='ri-shopping-bag-3-line' />}>
             <MenuItem href={`/${locale}/apps/ecommerce/dashboard`}>{dictionary['navigation'].dashboard}</MenuItem>
@@ -183,14 +199,18 @@ const HorizontalMenu = ({ dictionary }: { dictionary: Awaited<ReturnType<typeof 
             </MenuItem>
             <MenuItem href={`/${locale}/apps/invoice/add`}>{dictionary['navigation'].add}</MenuItem>
           </SubMenu>
-          <SubMenu label={dictionary['navigation'].user} icon={<i className='ri-user-line' />}>
-            <MenuItem href={`/${locale}/apps/user/list`}>{dictionary['navigation'].list}</MenuItem>
-            <MenuItem href={`/${locale}/apps/user/view`}>{dictionary['navigation'].view}</MenuItem>
-          </SubMenu>
-          <SubMenu label={dictionary['navigation'].rolesPermissions} icon={<i className='ri-lock-line' />}>
-            <MenuItem href={`/${locale}/apps/roles`}>{dictionary['navigation'].roles}</MenuItem>
-            <MenuItem href={`/${locale}/apps/permissions`}>{dictionary['navigation'].permissions}</MenuItem>
-          </SubMenu>
+          {isAdmin && (
+            <SubMenu label={dictionary['navigation'].user} icon={<i className='ri-user-line' />}>
+              <MenuItem href={`/${locale}/apps/user/list`}>{dictionary['navigation'].list}</MenuItem>
+              <MenuItem href={`/${locale}/apps/user/view`}>{dictionary['navigation'].view}</MenuItem>
+            </SubMenu>
+          )}
+          {isAdmin && (
+            <SubMenu label={dictionary['navigation'].rolesPermissions} icon={<i className='ri-lock-line' />}>
+              <MenuItem href={`/${locale}/apps/roles`}>{dictionary['navigation'].roles}</MenuItem>
+              <MenuItem href={`/${locale}/apps/permissions`}>{dictionary['navigation'].permissions}</MenuItem>
+            </SubMenu>
+          )}
         </SubMenu>
         <SubMenu label={dictionary['navigation'].pages} icon={<i className='ri-file-list-2-line' />}>
           <MenuItem href={`/${locale}/pages/user-profile`} icon={<i className='ri-user-line' />}>

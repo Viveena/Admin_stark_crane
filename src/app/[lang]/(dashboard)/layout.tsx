@@ -21,6 +21,7 @@ import Customizer from '@core/components/customizer'
 import ScrollToTop from '@core/components/scroll-to-top'
 
 // import AuthGuard from '@/hocs/AuthGuard'
+import RoleBasedGuard from '@/components/RoleBasedGuard'
 
 // Config Imports
 import { i18n } from '@configs/i18n'
@@ -43,6 +44,7 @@ const Layout = async (props: ChildrenType & { params: Promise<{ lang: Locale }> 
   return (
     <Providers direction={direction}>
       {/* <AuthGuard locale={params.lang}> */}
+      <RoleBasedGuard />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
