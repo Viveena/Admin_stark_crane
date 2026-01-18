@@ -14,12 +14,15 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 
 // Local Imports
 import PartsRelated, { RelatedContentData } from './PartsRelated'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type HeroSlide = {
     image: string
@@ -41,6 +44,15 @@ type Props = {
 }
 
 const PartsLandingSettings = ({ handleClose }: Props) => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'parts',
+        sectionKey: 'landing'
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: number]: File }>({});
+
     const {
         control,
         handleSubmit,
@@ -69,30 +81,74 @@ const PartsLandingSettings = ({ handleClose }: Props) => {
     })
 
     const relatedContentValue = watch('relatedContent')
+    const heroSlides = watch('heroSlides');
 
     useEffect(() => {
-        const savedSettings = localStorage.getItem('parts-landing')
-        if (savedSettings) {
-            reset(JSON.parse(savedSettings))
+        if (sectionData) {
+            reset({
+                heroSlides: sectionData.heroSlides || [{ image: '', title: '', shortLine: '', ctaText: '', ctaLink: '' }],
+                contentHeading: sectionData.contentHeading || '',
+                contentDescription: sectionData.contentDescription || '',
+                relatedContent: sectionData.relatedContent || {
+                    sectionTypes: [],
+                    relatedBlogs: [],
+                    relatedServices: [],
+                    relatedParts: [],
+                    relatedProjects: []
+                }
+            })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: LandingFormValues) => {
-        localStorage.setItem('parts-landing', JSON.stringify(data))
-        alert('Parts Landing Page Settings Saved!')
-        if (handleClose) handleClose()
+    const onSubmit = async (data: LandingFormValues) => {
+        setSaveStatus('saving');
+        try {
+            // Process uploads for hero slides
+            const updatedSlides = await Promise.all(data.heroSlides.map(async (slide, index) => {
+                let imageUrl = slide.image;
+                if (selectedFiles[index]) {
+                    imageUrl = await uploadImage(selectedFiles[index]);
+                }
+                return { ...slide, image: imageUrl };
+            }));
+
+            const dataToSave = {
+                ...data,
+                heroSlides: updatedSlides
+            };
+
+            await saveSection(dataToSave);
+            setSaveStatus('success');
+            setTimeout(() => setSaveStatus('idle'), 3000);
+            if (handleClose) handleClose();
+        } catch (err) {
+            console.error(err);
+            setSaveStatus('error');
+        }
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
         setValue('relatedContent', data)
     }
 
+    const handleFileSelect = (index: number, file: File) => {
+        setSelectedFiles(prev => ({ ...prev, [index]: file }));
+        setValue(`heroSlides.${index}.image`, file.name);
+    }
+
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
             <Grid container spacing={6}>
                 <Grid size={{ xs: 12 }}>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
                     <Card className='shadow-none border-none'>
-                        <CardHeader title='Parts Page Configuration' />
+                        <CardHeader title='Parts Page Configuration'
+                            subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
+                        />
                         <CardContent className='p-0'>
                             <Grid container spacing={5}>
 
@@ -105,7 +161,13 @@ const PartsLandingSettings = ({ handleClose }: Props) => {
                                     <Grid size={{ xs: 12 }} key={item.id} className='border rounded p-4 relative'>
                                         <div className='flex justify-between items-center mbe-4'>
                                             <Typography variant='h6'>Slide {index + 1}</Typography>
-                                            <IconButton size='small' color='error' onClick={() => remove(index)}>
+                                            <IconButton size='small' color='error' onClick={() => {
+                                                remove(index);
+                                                // Clean up file selection
+                                                const newFiles = { ...selectedFiles };
+                                                delete newFiles[index];
+                                                setSelectedFiles(newFiles);
+                                            }}>
                                                 <i className='ri-delete-bin-line' />
                                             </IconButton>
                                         </div>
@@ -157,7 +219,12 @@ const PartsLandingSettings = ({ handleClose }: Props) => {
                                                                     input: {
                                                                         endAdornment: field.value ? (
                                                                             <InputAdornment position='end'>
-                                                                                <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                                <IconButton size='small' edge='end' onClick={() => {
+                                                                                    field.onChange('');
+                                                                                    const newFiles = { ...selectedFiles };
+                                                                                    delete newFiles[index];
+                                                                                    setSelectedFiles(newFiles);
+                                                                                }}>
                                                                                     <i className='ri-close-line' />
                                                                                 </IconButton>
                                                                             </InputAdornment>
@@ -175,11 +242,19 @@ const PartsLandingSettings = ({ handleClose }: Props) => {
                                                                     onChange={(event) => {
                                                                         const { files } = event.target
                                                                         if (files && files.length !== 0) {
-                                                                            field.onChange(files[0].name)
+                                                                            handleFileSelect(index, files[0]);
                                                                         }
                                                                     }}
                                                                 />
                                                             </Button>
+                                                            {/* Preview */}
+                                                            {(field.value || selectedFiles[index]) && (
+                                                                <img
+                                                                    src={selectedFiles[index] ? URL.createObjectURL(selectedFiles[index]) : field.value}
+                                                                    alt="Preview"
+                                                                    className="h-10 w-10 object-cover rounded"
+                                                                />
+                                                            )}
                                                         </div>
                                                     )}
                                                 />
@@ -276,14 +351,16 @@ const PartsLandingSettings = ({ handleClose }: Props) => {
                     </Card>
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
+                    {saveStatus === 'success' && <Typography color="success.main">Saved!</Typography>}
+                    {saveStatus === 'error' && <Typography color="error.main">Error saving!</Typography>}
                     {handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        Save Settings
+                    <Button variant='contained' size='large' type='submit' disabled={saveStatus === 'saving'}>
+                        {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save Settings'}
                     </Button>
                 </Grid>
             </Grid>

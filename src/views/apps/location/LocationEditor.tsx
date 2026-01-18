@@ -17,12 +17,14 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 
 // Local Imports
 import TextEditor from '@/components/TextEditor'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type DetailSection = {
     heading: string
@@ -54,10 +56,19 @@ type Props = {
     isDrawer?: boolean
     handleClose?: () => void
     dataToEdit?: LocationType
-    onSuccess?: () => void
+    onSave?: (data: LocationType) => Promise<void> | void
 }
 
-const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => {
+const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSave }: Props) => {
+    // Determine page Key based on usage, default to 'location'
+    const { uploadImage } = usePageSection({
+        pageKey: 'location',
+        sectionKey: 'temp'
+    });
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File }>({});
+
     const {
         control,
         handleSubmit,
@@ -137,28 +148,47 @@ const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
         }
     }, [dataToEdit, reset])
 
-    const onSubmit = (data: FormValues) => {
-        const savedLocations = JSON.parse(localStorage.getItem('location-list') || '[]')
-        const timestamp = new Date().toISOString()
+    const handleFileSelect = (key: string, file: File, field: any) => {
+        setSelectedFiles(prev => ({ ...prev, [key]: file }));
+        field.onChange(file.name);
+    }
 
-        let newLocationsList
-        if (dataToEdit) {
-            newLocationsList = savedLocations.map((loc: LocationType) =>
-                loc.id === dataToEdit.id ? { ...loc, ...data, updatedAt: timestamp } : loc
-            )
-        } else {
-            const newLocation = {
-                id: Date.now().toString(),
-                ...data,
-                updatedAt: timestamp
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // Upload Hero Image
+            let heroImageUrl = data.heroImage;
+            if (selectedFiles['heroImage']) {
+                heroImageUrl = await uploadImage(selectedFiles['heroImage']);
             }
-            newLocationsList = [...savedLocations, newLocation]
+
+            // Upload Starting Image
+            let startingImageUrl = data.startingImage;
+            if (selectedFiles['startingImage']) {
+                startingImageUrl = await uploadImage(selectedFiles['startingImage']);
+            }
+
+            const timestamp = new Date().toISOString()
+            const finalData: LocationType = {
+                id: dataToEdit?.id || Date.now().toString(),
+                updatedAt: timestamp,
+                ...data,
+                heroImage: heroImageUrl,
+                startingImage: startingImageUrl
+            };
+
+            if (onSave) {
+                await onSave(finalData);
+            }
+
+            if (handleClose) handleClose()
+
+        } catch (error) {
+            console.error("Error saving location:", error);
+            alert("Failed to save location. Please try again.");
+        } finally {
+            setIsSaving(false);
         }
-
-        localStorage.setItem('location-list', JSON.stringify(newLocationsList))
-
-        if (onSuccess) onSuccess()
-        if (handleClose) handleClose()
     }
 
     return (
@@ -250,7 +280,12 @@ const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['heroImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -268,11 +303,19 @@ const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('heroImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['heroImage']) && (
+                                                    <img
+                                                        src={selectedFiles['heroImage'] ? URL.createObjectURL(selectedFiles['heroImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -332,7 +375,12 @@ const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['startingImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -350,11 +398,19 @@ const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('startingImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['startingImage']) && (
+                                                    <img
+                                                        src={selectedFiles['startingImage'] ? URL.createObjectURL(selectedFiles['startingImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -507,14 +563,14 @@ const LocationEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                     </Card>
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
                     {isDrawer && handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        {dataToEdit ? 'Update Location' : 'Save Location'}
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (dataToEdit ? 'Update Location' : 'Save Location')}
                     </Button>
                 </Grid>
             </Grid>

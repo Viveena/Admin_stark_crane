@@ -17,6 +17,7 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
@@ -24,6 +25,7 @@ import { useForm, Controller } from 'react-hook-form'
 // Local Imports
 import CaseStudyRelated, { RelatedContentData } from './CaseStudyRelated'
 import TextEditor from '@/components/TextEditor'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type FormValues = {
     heading: string
@@ -48,11 +50,21 @@ type Props = {
     handleClose?: () => void
     dataToEdit?: CaseStudyPost
     onSuccess?: () => void
+    onSave?: (data: CaseStudyPost) => Promise<void> | void
 }
 
-const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => {
+const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess, onSave }: Props) => {
     const router = useRouter()
     const searchParams = useSearchParams()
+
+    // Hook for Uploads
+    const { uploadImage } = usePageSection({
+        pageKey: 'case-study',
+        sectionKey: 'temp'
+    });
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File }>({});
 
     const editId = isDrawer ? dataToEdit?.id : searchParams?.get('id')
 
@@ -100,68 +112,77 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props
 
 
     useEffect(() => {
-        const savedPosts = JSON.parse(localStorage.getItem('casestudy-posts') || '[]')
+        if (editId && dataToEdit) {
+            reset({
+                heading: dataToEdit.heading || '',
+                slug: dataToEdit.slug || '',
+                heroImage: dataToEdit.heroImage || '',
+                description: dataToEdit.description || '',
+                startSectionHeading: dataToEdit.startSectionHeading || '',
+                startSectionShortDescription: dataToEdit.startSectionShortDescription || '',
+                detailsImage: dataToEdit.detailsImage || '',
+                detailsContent: dataToEdit.detailsContent || '',
+                caseStudyDetail: dataToEdit.caseStudyDetail || '',
+                relatedContent: dataToEdit.relatedContent || {
+                    sectionTypes: [],
+                    relatedBlogs: [],
+                    relatedServices: [],
+                    relatedParts: [],
+                    relatedProjects: []
+                }
+            })
+        }
+    }, [editId, reset, dataToEdit])
 
-        if (editId && (dataToEdit || !isDrawer)) {
-            const postToEdit = dataToEdit || savedPosts.find((post: any) => post.id === editId)
+    const handleFileSelect = (key: string, file: File, field: any) => {
+        setSelectedFiles(prev => ({ ...prev, [key]: file }));
+        field.onChange(file.name);
+    }
 
-            if (postToEdit) {
-                reset({
-                    heading: postToEdit.heading || '',
-                    slug: postToEdit.slug || '',
-                    heroImage: postToEdit.heroImage || '',
-                    description: postToEdit.description || '',
-                    startSectionHeading: postToEdit.startSectionHeading || '',
-                    startSectionShortDescription: postToEdit.startSectionShortDescription || '',
-                    detailsImage: postToEdit.detailsImage || '',
-                    detailsContent: postToEdit.detailsContent || '',
-                    caseStudyDetail: postToEdit.caseStudyDetail || '',
-                    relatedContent: postToEdit.relatedContent || {
-                        sectionTypes: [],
-                        relatedBlogs: [],
-                        relatedServices: [],
-                        relatedParts: [],
-                        relatedProjects: []
-                    }
-                })
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // Upload Images
+            let heroImageUrl = data.heroImage;
+            if (selectedFiles['heroImage']) {
+                heroImageUrl = await uploadImage(selectedFiles['heroImage']);
             }
-        }
-    }, [editId, reset, dataToEdit, isDrawer])
 
-    const onSubmit = (data: FormValues) => {
-        const savedPosts = JSON.parse(localStorage.getItem('casestudy-posts') || '[]')
-        const timestamp = new Date().toISOString()
-
-        const finalData = {
-            ...data
-        }
-
-        let newPostsList
-        if (editId) {
-            newPostsList = savedPosts.map((post: any) =>
-                post.id === editId ? { ...post, ...finalData, updatedAt: timestamp } : post
-            )
-        } else {
-            const newPost = {
-                id: Date.now().toString(),
-                ...finalData,
-                updatedAt: timestamp
+            let detailsImageUrl = data.detailsImage;
+            if (selectedFiles['detailsImage']) {
+                detailsImageUrl = await uploadImage(selectedFiles['detailsImage']);
             }
-            newPostsList = [...savedPosts, newPost]
-        }
 
-        localStorage.setItem('casestudy-posts', JSON.stringify(newPostsList))
+            const timestamp = new Date().toISOString()
+            const finalData: CaseStudyPost = {
+                id: dataToEdit?.id || Date.now().toString(),
+                updatedAt: timestamp,
+                ...data,
+                heroImage: heroImageUrl,
+                detailsImage: detailsImageUrl
+            };
 
-        if (isDrawer) {
-            if (onSuccess) onSuccess()
-            if (handleClose) handleClose()
-        } else {
-            alert(editId ? 'Case Study Updated!' : 'Case Study Created!')
-            if (!editId) {
-                reset()
+            if (onSave) {
+                await onSave(finalData);
+            }
+
+            if (isDrawer) {
+                if (onSuccess) onSuccess()
+                if (handleClose) handleClose()
             } else {
-                router.push('/apps/casestudy/list')
+                alert(editId ? 'Case Study Updated!' : 'Case Study Created!')
+                if (!editId) {
+                    reset()
+                    setSelectedFiles({});
+                } else {
+                    router.push('/apps/casestudy/list')
+                }
             }
+        } catch (error) {
+            console.error("Error saving case study:", error);
+            alert("Failed to save case study.");
+        } finally {
+            setIsSaving(false);
         }
     }
 
@@ -233,7 +254,12 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['heroImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -251,11 +277,19 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('heroImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['heroImage']) && (
+                                                    <img
+                                                        src={selectedFiles['heroImage'] ? URL.createObjectURL(selectedFiles['heroImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -345,7 +379,12 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['detailsImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -363,11 +402,19 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('detailsImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['detailsImage']) && (
+                                                    <img
+                                                        src={selectedFiles['detailsImage'] ? URL.createObjectURL(selectedFiles['detailsImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -425,14 +472,14 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props
                     </Card>
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
                     {isDrawer && handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        {editId ? 'Update Case Study' : 'Create Case Study'}
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (editId ? 'Update Case Study' : 'Create Case Study')}
                     </Button>
                 </Grid>
             </Grid>

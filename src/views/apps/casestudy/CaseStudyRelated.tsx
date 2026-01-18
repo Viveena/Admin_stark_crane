@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -30,7 +30,7 @@ export type RelatedContentData = {
     relatedProjects: string[]
 }
 
-// Mock Data
+// Mock Data (Ideally this comes from API/Props too, but keeping static for now)
 const MOCK_BLOGS = [
     { id: '1', title: 'Top 10 Career Tips' },
     { id: '2', title: 'Resume Building Guide' },
@@ -59,12 +59,11 @@ const MOCK_PROJECTS = [
     { id: 'pr4', title: 'Data Analytics Dashboard' }
 ]
 
-const CaseStudyRelated = ({ caseStudyData, id, onSave }: { caseStudyData?: any; id?: string, onSave?: (data: RelatedContentData) => void }) => {
+const CaseStudyRelated = ({ caseStudyData, onSave }: { caseStudyData?: RelatedContentData; onSave?: (data: RelatedContentData) => void }) => {
     const {
         control,
         handleSubmit,
         reset,
-        useWatch: useWatchForm
     } = useForm<RelatedContentData>({
         defaultValues: {
             sectionTypes: [],
@@ -75,12 +74,11 @@ const CaseStudyRelated = ({ caseStudyData, id, onSave }: { caseStudyData?: any; 
         }
     })
 
-    // Watch section types to handle conditioning and side-effects
+    // Watch section types
     const selectedSectionTypes = useWatch({ control, name: 'sectionTypes' }) || []
 
-    // Load saved data or props on mount
+    // Sync from props
     useEffect(() => {
-        // If data is passed via props, use it. Otherwise try local storage if id exists.
         if (caseStudyData) {
             reset({
                 sectionTypes: caseStudyData.sectionTypes || [],
@@ -89,27 +87,13 @@ const CaseStudyRelated = ({ caseStudyData, id, onSave }: { caseStudyData?: any; 
                 relatedParts: caseStudyData.relatedParts || [],
                 relatedProjects: caseStudyData.relatedProjects || []
             })
-        } else if (id) {
-            const storageKey = `casestudy-related-${id}`
-            const savedData = localStorage.getItem(storageKey)
-            if (savedData) {
-                reset(JSON.parse(savedData))
-            }
         }
-    }, [caseStudyData, reset, id])
+    }, [caseStudyData, reset])
 
     const onSubmit = (data: RelatedContentData) => {
-        if (id) {
-            const storageKey = `casestudy-related-${id}`
-            localStorage.setItem(storageKey, JSON.stringify(data))
-        }
-
         if (onSave) {
             onSave(data)
         }
-
-        console.log('Submitted Case Study Related Content:', data)
-        alert('Case Study Related Content Saved!')
     }
 
     const availableOptions = [
@@ -123,7 +107,14 @@ const CaseStudyRelated = ({ caseStudyData, id, onSave }: { caseStudyData?: any; 
         <Card>
             <CardHeader title='Related Content Configuration' subheader='Choose up to 2 sections to display' />
             <CardContent>
-                <form onSubmit={handleSubmit(onSubmit)}>
+                {/* 
+                    Note: We use a form here but we don't necessarily want to submit the WHOLE page form if this is nested.
+                    If this component is used inside another form, having a nested <form> is invalid HTML.
+                    However, React usually handles event bubbling. Ideally, we just use a div and a button type='button' that triggers handleSubmit manually?
+                    Or we keep it as is if it works. The parent usually uses <form> too.
+                    Nested forms are bad. Let's change <form> to <div> and handle submit via button onClick.
+                */}
+                <div /* onSubmit={handleSubmit(onSubmit)} */>
                     <Grid container spacing={5}>
                         <Grid size={{ xs: 12 }}>
                             <Controller
@@ -340,12 +331,13 @@ const CaseStudyRelated = ({ caseStudyData, id, onSave }: { caseStudyData?: any; 
                             </Grid>
                         )}
                         <Grid size={{ xs: 12 }} className='flex justify-end'>
-                            <Button variant='contained' type='submit'>
-                                Save Related Content
+                            {/* Changed to type='button' and onClick to avoid form submission conflicts if nested */}
+                            <Button variant='outlined' onClick={handleSubmit(onSubmit)}>
+                                Confirm Related Content
                             </Button>
                         </Grid>
                     </Grid>
-                </form>
+                </div>
             </CardContent>
         </Card>
     )

@@ -14,12 +14,15 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import MenuItem from '@mui/material/MenuItem'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
 
 // Local Imports
 import CaseStudyRelated, { RelatedContentData } from './CaseStudyRelated'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type LandingFormValues = {
     heading: string
@@ -37,20 +40,29 @@ type Props = {
 }
 
 const INTERNAL_PAGES = [
-    { label: 'Home', value: '/dashboards/crm' }, // Adjust based on actual home route
+    { label: 'Home', value: '/dashboards/crm' },
     { label: 'Case Studies', value: '/apps/casestudy/list' },
     { label: 'Academy', value: '/apps/academy/dashboard' },
     { label: 'Jobs', value: '/apps/career/dashboard' },
     { label: 'Events', value: '/apps/events/list' },
     { label: 'News', value: '/apps/news/list' },
     { label: 'Blog', value: '/apps/blog/dashboard' },
-    { label: 'Contact Us', value: '/pages/contact' }, // Assuming this exists or similar
-    { label: 'About Us', value: '/pages/about' }, // Assuming this exists
+    { label: 'Contact Us', value: '/pages/contact' },
+    { label: 'About Us', value: '/pages/about' },
     { label: 'FAQ', value: '/pages/faq' },
     { label: 'Pricing', value: '/pages/pricing' }
 ]
 
 const CaseStudyLandingSettings = ({ handleClose }: Props) => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'case-study',
+        sectionKey: 'landing'
+    });
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
     const {
         control,
         handleSubmit,
@@ -80,16 +92,29 @@ const CaseStudyLandingSettings = ({ handleClose }: Props) => {
     const relatedContentValue = watch('relatedContent')
 
     useEffect(() => {
-        const savedSettings = localStorage.getItem('casestudy-landing')
-        if (savedSettings) {
-            reset(JSON.parse(savedSettings))
+        if (sectionData) {
+            reset(sectionData);
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: LandingFormValues) => {
-        localStorage.setItem('casestudy-landing', JSON.stringify(data))
-        alert('Landing Page Settings Saved!')
-        if (handleClose) handleClose()
+    const onSubmit = async (data: LandingFormValues) => {
+        setIsSaving(true);
+        try {
+            let heroImageUrl = data.heroImage;
+            if (selectedFile) {
+                heroImageUrl = await uploadImage(selectedFile);
+            }
+
+            const finalData = { ...data, heroImage: heroImageUrl };
+            await saveSection(finalData);
+            alert('Landing Page Settings Saved!')
+            if (handleClose) handleClose()
+        } catch (e) {
+            console.error("Failed to save landing settings", e);
+            alert("Failed to save settings.")
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
@@ -98,6 +123,7 @@ const CaseStudyLandingSettings = ({ handleClose }: Props) => {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
+            {error && <Alert severity='error' className='mbe-4'>{error}</Alert>}
             <Grid container spacing={6}>
                 <Grid size={{ xs: 12 }}>
                     <Card className='shadow-none border-none'>
@@ -199,7 +225,10 @@ const CaseStudyLandingSettings = ({ handleClose }: Props) => {
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        setSelectedFile(null);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -217,11 +246,20 @@ const CaseStudyLandingSettings = ({ handleClose }: Props) => {
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                field.onChange(files[0].name);
+                                                                setSelectedFile(files[0]);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFile) && (
+                                                    <img
+                                                        src={selectedFile ? URL.createObjectURL(selectedFile) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -294,8 +332,8 @@ const CaseStudyLandingSettings = ({ handleClose }: Props) => {
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        Save Settings
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save Settings'}
                     </Button>
                 </Grid>
             </Grid>

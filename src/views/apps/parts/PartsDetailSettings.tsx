@@ -14,12 +14,15 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 
 // Local Imports
 import PartsRelated, { RelatedContentData } from './PartsRelated'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type DetailListItem = {
     heading: string
@@ -52,6 +55,15 @@ type Props = {
 }
 
 const PartsDetailSettings = ({ handleClose }: Props) => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'parts',
+        sectionKey: 'detail'
+    });
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedHeroFile, setSelectedHeroFile] = useState<File | null>(null);
+
     const {
         control,
         handleSubmit,
@@ -89,40 +101,89 @@ const PartsDetailSettings = ({ handleClose }: Props) => {
     const relatedContentValue = watch('relatedContent')
 
     useEffect(() => {
-        const savedSettings = localStorage.getItem('parts-detail')
-        if (savedSettings) {
+        if (sectionData) {
             try {
-                const parsed = JSON.parse(savedSettings);
                 // Migration check: if old format (label/value) exists, convert to heading/description
-                if (parsed.detailsList && parsed.detailsList.length > 0 && 'label' in parsed.detailsList[0]) {
-                    parsed.detailsList = parsed.detailsList.map((item: any) => ({
+                let detailsList = sectionData.detailsList || [{ heading: '', description: '' }];
+                if (detailsList.length > 0 && 'label' in detailsList[0]) {
+                    detailsList = detailsList.map((item: any) => ({
                         heading: item.label,
                         description: item.value
                     }))
                 }
-                reset(parsed)
+
+                reset({
+                    heroImage: sectionData.heroImage || '',
+                    heroTitle: sectionData.heroTitle || '',
+                    heroDescription: sectionData.heroDescription || '',
+                    ctaText: sectionData.ctaText || '',
+                    ctaLink: sectionData.ctaLink || '',
+                    section2Heading: sectionData.section2Heading || '',
+                    section2Description: sectionData.section2Description || '',
+                    detailsTitle: sectionData.detailsTitle || '',
+                    detailsDescription: sectionData.detailsDescription || '',
+                    detailsList: detailsList,
+                    relatedContent: sectionData.relatedContent || {
+                        sectionTypes: [],
+                        relatedBlogs: [],
+                        relatedServices: [],
+                        relatedParts: [],
+                        relatedProjects: []
+                    }
+                })
             } catch (e) {
                 console.error("Failed to parse parts-detail settings", e)
             }
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: DetailFormValues) => {
-        localStorage.setItem('parts-detail', JSON.stringify(data))
-        alert('Parts Detail Page Settings Saved!')
-        if (handleClose) handleClose()
+    const onSubmit = async (data: DetailFormValues) => {
+        setIsSaving(true);
+        try {
+            let heroImageUrl = data.heroImage;
+            if (selectedHeroFile) {
+                heroImageUrl = await uploadImage(selectedHeroFile);
+            }
+
+            const dataToSave = {
+                ...data,
+                heroImage: heroImageUrl
+            };
+
+            await saveSection(dataToSave);
+            alert('Parts Detail Page Settings Saved!');
+            if (handleClose) handleClose();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save settings');
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
         setValue('relatedContent', data)
     }
 
+    const handleHeroFileSelect = (file: File) => {
+        setSelectedHeroFile(file);
+        setValue('heroImage', file.name);
+    }
+
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
             <Grid container spacing={8}>
                 <Grid size={{ xs: 12 }}>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
                     <Card className='shadow-none border-none'>
-                        <CardHeader title='Parts Detail Page Configuration' />
+                        <CardHeader
+                            title='Parts Detail Page Configuration'
+                            subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
+                        />
                         <CardContent className='p-2'>
                             <Grid container spacing={6}>
 
@@ -148,7 +209,10 @@ const PartsDetailSettings = ({ handleClose }: Props) => {
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        setSelectedHeroFile(null);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -166,11 +230,20 @@ const PartsDetailSettings = ({ handleClose }: Props) => {
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleHeroFileSelect(files[0]);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedHeroFile) && (
+                                                    <img
+                                                        src={selectedHeroFile ? URL.createObjectURL(selectedHeroFile) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -387,8 +460,8 @@ const PartsDetailSettings = ({ handleClose }: Props) => {
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        Save Detail Settings
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save Detail Settings'}
                     </Button>
                 </Grid>
             </Grid>

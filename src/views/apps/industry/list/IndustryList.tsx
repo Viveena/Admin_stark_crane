@@ -19,6 +19,8 @@ import TableRow from '@mui/material/TableRow'
 import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Type Imports
 import type { IndustryType } from '../IndustryEditor'
@@ -27,7 +29,16 @@ import type { IndustryType } from '../IndustryEditor'
 import IndustryEditor from '../IndustryEditor'
 import IndustryLandingSettings from '../IndustryLandingSettings'
 
+// Hook Imports
+import { usePageSection } from '@/hooks/usePageSection'
+
 const IndustryList = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'industry',
+        sectionKey: 'items'
+    });
+
     // States
     const [data, setData] = useState<IndustryType[]>([])
     const [filteredData, setFilteredData] = useState<IndustryType[]>([])
@@ -40,19 +51,23 @@ const IndustryList = () => {
     const [landingOpen, setLandingOpen] = useState(false)
     const [editingNode, setEditingNode] = useState<IndustryType | undefined>(undefined)
 
-    // Load data
-    const loadData = () => {
-        const savedData = localStorage.getItem('industry-list')
-        if (savedData) {
-            const parsedData = JSON.parse(savedData)
-            setData(parsedData)
-            setFilteredData(parsedData)
-        }
-    }
-
+    // Sync data from hook to local state
     useEffect(() => {
-        loadData()
-    }, [])
+        if (sectionData && Array.isArray(sectionData.items)) {
+            setData(sectionData.items);
+            setFilteredData(sectionData.items);
+        } else if (sectionData) {
+            // Fallback if data structure is just the array directly or different
+            // Check if sectionData itself is the array (legacy support or flat structure)
+            if (Array.isArray(sectionData)) {
+                setData(sectionData);
+                setFilteredData(sectionData);
+            } else {
+                setData([]);
+                setFilteredData([]);
+            }
+        }
+    }, [sectionData])
 
     // Filter
     useEffect(() => {
@@ -84,17 +99,36 @@ const IndustryList = () => {
         setEditorOpen(true)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this industry?')) {
             const newData = data.filter(item => item.id !== id)
-            localStorage.setItem('industry-list', JSON.stringify(newData))
-            loadData()
+            setData(newData); // Optimistic update
+            try {
+                // We wrap the list in an object key 'items' to be consistent with usePageSection expects object usually
+                await saveSection({ items: newData });
+            } catch (e) {
+                console.error("Delete failed", e);
+                // Revert or show error could happen here
+            }
         }
     }
 
-    const handleEditorSuccess = () => {
-        loadData()
-        setEditorOpen(false)
+    const handleEditorSave = async (itemData: IndustryType) => {
+        let newData;
+        if (editingNode) {
+            // Update existing
+            newData = data.map(item => item.id === itemData.id ? itemData : item);
+        } else {
+            // Add new
+            newData = [...data, itemData];
+        }
+
+        // Optimistic update
+        setData(newData);
+        setEditorOpen(false);
+
+        // API Save
+        await saveSection({ items: newData });
     }
 
     return (
@@ -103,6 +137,7 @@ const IndustryList = () => {
                 title='Industry'
                 action={
                     <div className='flex gap-4 items-center'>
+                        {loading && <CircularProgress size={20} />}
                         <TextField
                             size='small'
                             placeholder='Search Industry'
@@ -125,6 +160,8 @@ const IndustryList = () => {
                     </div>
                 }
             />
+            {error && <Alert severity='error' className='m-4'>{error}</Alert>}
+
             <TableContainer>
                 <Table>
                     <TableHead>
@@ -196,7 +233,7 @@ const IndustryList = () => {
                     <IndustryEditor
                         isDrawer
                         handleClose={() => setEditorOpen(false)}
-                        onSuccess={handleEditorSuccess}
+                        onSave={handleEditorSave}
                         dataToEdit={editingNode}
                     />
                 </div>

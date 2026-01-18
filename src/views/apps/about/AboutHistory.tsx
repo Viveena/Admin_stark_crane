@@ -19,10 +19,13 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Component Imports
 import HistoryDrawer from './HistoryDrawer'
 import usePermission from '@/hooks/usePermission'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type HistoryItem = {
     heading: string
@@ -32,24 +35,66 @@ type HistoryItem = {
 }
 
 const AboutHistory = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection } = usePageSection({
+        pageKey: 'about',
+        sectionKey: 'history'
+    });
+
     const [historyItems, setHistoryItems] = useState<HistoryItem[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const { canCreate } = usePermission('about-us')
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     // Load data
     useEffect(() => {
-        const savedData = localStorage.getItem('about_history_data')
-        if (savedData) {
-            const parsed = JSON.parse(savedData)
-            setHistoryItems(parsed.historyValues || [])
+        if (sectionData && sectionData.historyValues) {
+            setHistoryItems(sectionData.historyValues || [])
         }
-    }, [])
+    }, [sectionData])
 
-    const saveData = (newItems: HistoryItem[]) => {
+    const handleSaveToApi = async (currentItems: HistoryItem[]) => {
+        setIsSaving(true);
+        setSaveStatus('idle');
+        try {
+            await saveSection({ historyValues: currentItems });
+            setSaveStatus('success');
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+            console.error(error);
+            setSaveStatus('error');
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
+    const handleManualSave = () => {
+        handleSaveToApi(historyItems);
+    }
+
+    const handleDelete = (index: number) => {
+        const newItems = historyItems.filter((_, i) => i !== index)
         setHistoryItems(newItems)
-        const dataToSave = { historyValues: newItems }
-        localStorage.setItem('about_history_data', JSON.stringify(dataToSave))
+    }
+
+    const handleDrawerSave = (data: any) => {
+        const newItem: HistoryItem = {
+            heading: data.heading,
+            text: data.text,
+            link: data.link
+        }
+
+        let newItems = [...historyItems]
+        if (editingIndex !== null) {
+            newItems[editingIndex] = newItem
+        } else {
+            newItems.push(newItem)
+        }
+
+        setHistoryItems(newItems)
+        setDrawerOpen(false)
     }
 
     const handleAdd = () => {
@@ -62,50 +107,44 @@ const AboutHistory = () => {
         setDrawerOpen(true)
     }
 
-    const handleDelete = (index: number) => {
-        const newItems = historyItems.filter((_, i) => i !== index)
-        saveData(newItems)
-    }
-
-    const handleDrawerSave = (data: any) => {
-        const newItem: HistoryItem = {
-            heading: data.heading,
-            text: data.text,
-            link: data.link
-            // image omitted
-        }
-
-        let newItems = [...historyItems]
-        if (editingIndex !== null) {
-            newItems[editingIndex] = newItem
-        } else {
-            newItems.push(newItem)
-        }
-
-        saveData(newItems)
-        setDrawerOpen(false)
-    }
-
     return (
         <>
             <Card>
                 <CardHeader
                     title='History & Business Vertical'
+                    subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
                     action={
-                        canCreate && (
-                            <Button
-                                variant='contained'
-                                onClick={handleAdd}
-                                disabled={historyItems.length >= 4}
-                                startIcon={<i className="ri-add-line" />}
-                            >
-                                Add New Item
-                            </Button>
-                        )
+                        <div className="flex items-center gap-2">
+                            {saveStatus === 'success' && <Typography color="success.main" variant="body2">Saved!</Typography>}
+                            {saveStatus === 'error' && <Typography color="error.main" variant="body2">Error!</Typography>}
+                            {canCreate && (
+                                <>
+                                    <Button
+                                        variant='outlined'
+                                        onClick={handleAdd}
+                                        disabled={historyItems.length >= 4}
+                                        startIcon={<i className="ri-add-line" />}
+                                    >
+                                        Add Item
+                                    </Button>
+                                    <Button
+                                        variant='contained'
+                                        onClick={handleManualSave}
+                                        disabled={loading || isSaving}
+                                        startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : null}
+                                    >
+                                        Save List
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     }
                 />
                 <Divider />
                 <CardContent>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+
                     {historyItems.length > 0 ? (
                         <TableContainer component={Paper} variant="outlined">
                             <Table>
@@ -114,7 +153,7 @@ const AboutHistory = () => {
                                         <TableCell>Heading</TableCell>
                                         <TableCell>Text</TableCell>
                                         <TableCell>Link</TableCell>
-                                        <TableCell align="right">Actions</TableCell>
+                                        <TableCell align="right">Actions (Local)</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>

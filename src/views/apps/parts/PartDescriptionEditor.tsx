@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 // MUI Imports
 import Button from '@mui/material/Button'
@@ -14,6 +14,7 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
@@ -48,18 +49,98 @@ type Props = {
     dataToEdit?: PartDescriptionType
     onSave: (data: PartDescriptionType) => void
     onCancel: () => void
+    uploadImage?: (file: File) => Promise<string>
 }
+
+// Subcomponent for reusable image input in Array fields
+const ImageUploadInput = ({
+    value,
+    onChange,
+    label,
+    uploadImage
+}: {
+    value: string,
+    onChange: (val: string) => void,
+    label: string,
+    uploadImage?: (file: File) => Promise<string>
+}) => {
+    const [uploading, setUploading] = useState(false);
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const { files } = event.target;
+        if (files && files.length > 0 && uploadImage) {
+            setUploading(true);
+            try {
+                const url = await uploadImage(files[0]);
+                onChange(url);
+            } catch (error) {
+                console.error("Upload failed", error);
+                alert("Image upload failed");
+            } finally {
+                setUploading(false);
+            }
+        } else if (files && files.length > 0) {
+            // Fallback if no uploadImage function provided
+            onChange(files[0].name);
+        }
+    };
+
+    return (
+        <div className='flex items-center gap-4'>
+            <TextField
+                value={value || ''}
+                size='small'
+                fullWidth
+                placeholder='No file chosen'
+                variant='outlined'
+                label={label}
+                slotProps={{
+                    input: {
+                        readOnly: true,
+                        endAdornment: value ? (
+                            <InputAdornment position='end'>
+                                <IconButton size='small' edge='end' onClick={() => onChange('')}>
+                                    <i className='ri-close-line' />
+                                </IconButton>
+                            </InputAdornment>
+                        ) : null
+                    }
+                }}
+            />
+            <Button component='label' variant='outlined' disabled={uploading} className='min-is-fit'>
+                {uploading ? <CircularProgress size={20} /> : 'Choose'}
+                <input
+                    hidden
+                    type='file'
+                    accept='image/*'
+                    onChange={handleFileChange}
+                />
+            </Button>
+            {/* Preview */}
+            {value && (
+                <img
+                    src={value}
+                    alt="Preview"
+                    className="h-10 w-10 object-cover rounded"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                />
+            )}
+        </div>
+    );
+};
 
 const TechSpecCard = ({
     control,
     index,
     remove,
-    errors
+    errors,
+    uploadImage
 }: {
     control: any,
     index: number,
     remove: (index: number) => void,
-    errors: any
+    errors: any,
+    uploadImage?: (file: File) => Promise<string>
 }) => {
     const { fields: imageFields, append: appendImage, remove: removeImage } = useFieldArray({
         control,
@@ -95,40 +176,14 @@ const TechSpecCard = ({
                             control={control}
                             render={({ field }) => (
                                 <div className='flex items-center gap-2 mbe-2'>
-                                    <TextField
-                                        {...field}
-                                        fullWidth
-                                        size='small'
-                                        placeholder='No file chosen'
-                                        variant='outlined'
-                                        label={`Image ${imgIndex + 1}`}
-                                        slotProps={{
-                                            input: {
-                                                endAdornment: field.value ? (
-                                                    <InputAdornment position='end'>
-                                                        <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
-                                                            <i className='ri-close-line' />
-                                                        </IconButton>
-                                                    </InputAdornment>
-                                                ) : null
-                                            }
-                                        }}
-                                    />
-                                    <Button component='label' variant='outlined' htmlFor={`spec-img-${index}-${imgIndex}`} className='min-is-fit'>
-                                        Choose
-                                        <input
-                                            hidden
-                                            id={`spec-img-${index}-${imgIndex}`}
-                                            type='file'
-                                            accept='image/*'
-                                            onChange={(event) => {
-                                                const { files } = event.target
-                                                if (files && files.length !== 0) {
-                                                    field.onChange(files[0].name)
-                                                }
-                                            }}
+                                    <div className="flex-grow">
+                                        <ImageUploadInput
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            label={`Image ${imgIndex + 1}`}
+                                            uploadImage={uploadImage}
                                         />
-                                    </Button>
+                                    </div>
                                     <IconButton size='small' color='error' onClick={() => removeImage(imgIndex)}>
                                         <i className='ri-delete-bin-line' />
                                     </IconButton>
@@ -165,7 +220,7 @@ const TechSpecCard = ({
     )
 }
 
-const PartDescriptionEditor = ({ dataToEdit, onSave, onCancel }: Props) => {
+const PartDescriptionEditor = ({ dataToEdit, onSave, onCancel, uploadImage }: Props) => {
     const {
         control,
         handleSubmit,
@@ -241,50 +296,6 @@ const PartDescriptionEditor = ({ dataToEdit, onSave, onCancel }: Props) => {
         setValue('relatedContent', data)
     }
 
-    const renderImageInput = (controlName: any, label: string) => (
-        <Controller
-            name={controlName}
-            control={control}
-            render={({ field }) => (
-                <div className='flex items-center gap-4'>
-                    <TextField
-                        {...field}
-                        fullWidth
-                        placeholder='No file chosen'
-                        variant='outlined'
-                        label={label}
-                        slotProps={{
-                            input: {
-                                endAdornment: field.value ? (
-                                    <InputAdornment position='end'>
-                                        <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
-                                            <i className='ri-close-line' />
-                                        </IconButton>
-                                    </InputAdornment>
-                                ) : null
-                            }
-                        }}
-                    />
-                    <Button component='label' variant='outlined' htmlFor={`file-${controlName}`} className='min-is-fit'>
-                        Choose
-                        <input
-                            hidden
-                            id={`file-${controlName}`}
-                            type='file'
-                            accept='image/*'
-                            onChange={(event) => {
-                                const { files } = event.target
-                                if (files && files.length !== 0) {
-                                    field.onChange(files[0].name)
-                                }
-                            }}
-                        />
-                    </Button>
-                </div>
-            )}
-        />
-    )
-
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
             <Grid container spacing={8}>
@@ -354,7 +365,18 @@ const PartDescriptionEditor = ({ dataToEdit, onSave, onCancel }: Props) => {
                                                     />
                                                 </Grid>
                                                 <Grid size={{ xs: 12 }}>
-                                                    {renderImageInput(`dynamicSections.${index}.image`, 'Section Image')}
+                                                    <Controller
+                                                        name={`dynamicSections.${index}.image`}
+                                                        control={control}
+                                                        render={({ field }) => (
+                                                            <ImageUploadInput
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                                label='Section Image'
+                                                                uploadImage={uploadImage}
+                                                            />
+                                                        )}
+                                                    />
                                                 </Grid>
                                                 <Grid size={{ xs: 12 }}>
                                                     <Controller
@@ -411,6 +433,7 @@ const PartDescriptionEditor = ({ dataToEdit, onSave, onCancel }: Props) => {
                                             index={index}
                                             remove={removeTechSpec}
                                             errors={errors}
+                                            uploadImage={uploadImage}
                                         />
                                     ))}
                                     <Button variant='outlined' onClick={() => appendTechSpec({ title: '', description: '', images: [] })}>

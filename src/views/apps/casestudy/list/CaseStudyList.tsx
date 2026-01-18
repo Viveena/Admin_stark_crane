@@ -20,12 +20,21 @@ import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
 import Avatar from '@mui/material/Avatar'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 import CaseStudyEditor, { CaseStudyPost } from '../CaseStudyEditor'
 import CaseStudyLandingSettings from '../CaseStudyLandingSettings'
 import usePermission from '@/hooks/usePermission'
+import { usePageSection } from '@/hooks/usePageSection'
 
 const CaseStudyList = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'case-study',
+        sectionKey: 'items'
+    });
+
     const [posts, setPosts] = useState<CaseStudyPost[]>([])
     const [editorOpen, setEditorOpen] = useState(false)
     const [landingOpen, setLandingOpen] = useState(false)
@@ -37,30 +46,54 @@ const CaseStudyList = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10)
     const [searchTerm, setSearchTerm] = useState('')
 
-    const fetchPosts = () => {
-        const savedPosts = JSON.parse(localStorage.getItem('casestudy-posts') || '[]')
-        setPosts(savedPosts)
-    }
-
+    // Sync from hook
     useEffect(() => {
-        fetchPosts()
-    }, [])
+        if (sectionData) {
+            if (Array.isArray(sectionData.items)) {
+                setPosts(sectionData.items);
+            } else if (Array.isArray(sectionData)) {
+                setPosts(sectionData);
+            } else {
+                setPosts([]);
+            }
+        }
+    }, [sectionData])
 
     const handleEdit = (post: CaseStudyPost) => {
         setSelectedPost(post)
         setEditorOpen(true)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this case study?')) {
             const updatedPosts = posts.filter(item => item.id !== id)
-            localStorage.setItem('casestudy-posts', JSON.stringify(updatedPosts))
-            setPosts(updatedPosts)
+            setPosts(updatedPosts); // Optimistic
+            try {
+                await saveSection({ items: updatedPosts });
+            } catch (e) {
+                console.error("Failed to delete case study", e);
+            }
         }
     }
 
+    const handleSave = async (itemData: CaseStudyPost) => {
+        let newData;
+        if (selectedPost) {
+            // Update
+            newData = posts.map(item => item.id === itemData.id ? itemData : item);
+        } else {
+            // Add
+            newData = [...posts, itemData];
+        }
+
+        setPosts(newData);
+        setEditorOpen(false);
+        setSelectedPost(undefined);
+        await saveSection({ items: newData });
+    }
+
     const handleSuccess = () => {
-        fetchPosts()
+        // managed by onSave now
         setEditorOpen(false)
         setSelectedPost(undefined)
     }
@@ -97,6 +130,7 @@ const CaseStudyList = () => {
                 title='Case Studies'
                 action={
                     <div className='flex gap-2 items-center'>
+                        {loading && <CircularProgress size={20} />}
                         <TextField
                             size='small'
                             placeholder='Search Heading or Slug...'
@@ -122,6 +156,7 @@ const CaseStudyList = () => {
                     </div>
                 }
             />
+            {error && <Alert severity='error' className='m-4'>{error}</Alert>}
             <CardContent>
                 <TableContainer>
                     <Table>
@@ -208,7 +243,7 @@ const CaseStudyList = () => {
                     <CaseStudyEditor
                         isDrawer={true}
                         handleClose={handleClose}
-                        onSuccess={handleSuccess}
+                        onSave={handleSave}
                         dataToEdit={selectedPost}
                     />
                 </div>

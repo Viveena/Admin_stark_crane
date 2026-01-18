@@ -20,22 +20,21 @@ import TableRow from '@mui/material/TableRow'
 import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
-import EventsEditor from '../EventsEditor'
+import EventsEditor, { EventPost } from '../EventsEditor'
 import AddCategoryDrawer from './AddCategoryDrawer'
 import usePermission from '@/hooks/usePermission'
-
-type EventPost = {
-    id: string
-    heading: string
-    category: string
-    status: string
-    eventDate: string | null
-    location: string
-    updatedAt: string
-}
+import { usePageSection } from '@/hooks/usePageSection'
 
 const EventsList = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'events',
+        sectionKey: 'items'
+    });
+
     const [events, setEvents] = useState<EventPost[]>([])
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
     const [eventDrawerOpen, setEventDrawerOpen] = useState(false)
@@ -47,32 +46,50 @@ const EventsList = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10)
     const [searchTerm, setSearchTerm] = useState('')
 
-    const fetchEvents = () => {
-        const savedEvents = JSON.parse(localStorage.getItem('events-posts') || '[]')
-        setEvents(savedEvents)
-    }
-
+    // Sync from hook
     useEffect(() => {
-        fetchEvents()
-    }, [])
+        if (sectionData) {
+            if (Array.isArray(sectionData.items)) {
+                setEvents(sectionData.items);
+            } else if (Array.isArray(sectionData)) {
+                setEvents(sectionData);
+            } else {
+                setEvents([]);
+            }
+        }
+    }, [sectionData])
 
     const handleEdit = (post: EventPost) => {
         setSelectedEvent(post)
         setEventDrawerOpen(true)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this event?')) {
             const updatedEvents = events.filter(item => item.id !== id)
-            localStorage.setItem('events-posts', JSON.stringify(updatedEvents))
-            setEvents(updatedEvents)
+            setEvents(updatedEvents); // Optimistic
+            try {
+                await saveSection({ items: updatedEvents });
+            } catch (e) {
+                console.error("Failed to delete event", e);
+            }
         }
     }
 
-    const handleEventSuccess = () => {
-        fetchEvents()
-        setEventDrawerOpen(false)
-        setSelectedEvent(undefined)
+    const handleEventSave = async (itemData: EventPost) => {
+        let newData;
+        if (selectedEvent) {
+            // Update
+            newData = events.map(item => item.id === itemData.id ? itemData : item);
+        } else {
+            // Add
+            newData = [...events, itemData];
+        }
+
+        setEvents(newData);
+        setEventDrawerOpen(false);
+        setSelectedEvent(undefined);
+        await saveSection({ items: newData });
     }
 
     const handleEventDrawerClose = () => {
@@ -108,6 +125,7 @@ const EventsList = () => {
                 title='Events List'
                 action={
                     <div className='flex gap-2 items-center'>
+                        {loading && <CircularProgress size={20} />}
                         <TextField
                             size='small'
                             placeholder='Search Events...'
@@ -133,6 +151,8 @@ const EventsList = () => {
                     </div>
                 }
             />
+            {error && <Alert severity='error' className='m-4'>{error}</Alert>}
+
             <CardContent>
                 <TableContainer>
                     <Table>
@@ -229,7 +249,7 @@ const EventsList = () => {
                     <EventsEditor
                         isDrawer={true}
                         handleClose={handleEventDrawerClose}
-                        onSuccess={handleEventSuccess}
+                        onSave={handleEventSave}
                         dataToEdit={selectedEvent}
                     />
                 </div>

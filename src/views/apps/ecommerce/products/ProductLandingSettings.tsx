@@ -13,12 +13,15 @@ import Divider from '@mui/material/Divider'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
 
 // Local Imports
 import PartsRelated, { RelatedContentData } from '../../parts/PartsRelated'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type FormData = {
     heroTitle: string
@@ -31,6 +34,15 @@ type FormData = {
 }
 
 const ProductLandingSettings = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'product',
+        sectionKey: 'landing'
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
     // Hooks
     const {
         control,
@@ -60,15 +72,45 @@ const ProductLandingSettings = () => {
     const relatedContentValue = watch('relatedContent')
 
     useEffect(() => {
-        const savedData = localStorage.getItem('product-landing-settings')
-        if (savedData) {
-            reset(JSON.parse(savedData))
+        if (sectionData) {
+            reset({
+                heroTitle: sectionData.heroTitle || '',
+                heroImage: sectionData.heroImage || '',
+                heroCtaText: sectionData.heroCtaText || '',
+                heroCtaLink: sectionData.heroCtaLink || '',
+                secondSectionHeading: sectionData.secondSectionHeading || '',
+                secondSectionParagraph: sectionData.secondSectionParagraph || '',
+                relatedContent: sectionData.relatedContent || {
+                    sectionTypes: [],
+                    relatedBlogs: [],
+                    relatedServices: [],
+                    relatedParts: [],
+                    relatedProjects: []
+                }
+            })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: FormData) => {
-        localStorage.setItem('product-landing-settings', JSON.stringify(data))
-        alert('Product Landing Settings Saved!')
+    const onSubmit = async (data: FormData) => {
+        setSaveStatus('saving');
+        try {
+            let imageUrl = data.heroImage;
+            if (selectedFile) {
+                imageUrl = await uploadImage(selectedFile);
+            }
+
+            const dataToSave = {
+                ...data,
+                heroImage: imageUrl
+            };
+
+            await saveSection(dataToSave);
+            setSaveStatus('success');
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (err) {
+            console.error(err);
+            setSaveStatus('error');
+        }
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
@@ -78,11 +120,17 @@ const ProductLandingSettings = () => {
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
             <Grid container spacing={6}>
+                <Grid size={{ xs: 12 }}>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+                </Grid>
+
                 {/* Hero Section */}
                 <Grid size={{ xs: 12 }}>
                     <Card>
                         <CardHeader
                             title='Hero Section'
+                            subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
                             action={
                                 <div className='flex gap-2'>
                                     <Link href='/apps/ecommerce/products/add'>
@@ -133,7 +181,10 @@ const ProductLandingSettings = () => {
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('')
+                                                                        setSelectedFile(null)
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -151,11 +202,19 @@ const ProductLandingSettings = () => {
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
+                                                                setSelectedFile(files[0])
                                                                 field.onChange(files[0].name)
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {(field.value || selectedFile) && (
+                                                    <img
+                                                        src={selectedFile ? URL.createObjectURL(selectedFile) : field.value}
+                                                        alt="Hero Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -243,9 +302,11 @@ const ProductLandingSettings = () => {
                     />
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end'>
-                    <Button variant='contained' type='submit' size='large'>
-                        Save Changes
+                <Grid size={{ xs: 12 }} className='flex justify-end items-center gap-4'>
+                    {saveStatus === 'success' && <Typography color="success.main">Saved!</Typography>}
+                    {saveStatus === 'error' && <Typography color="error.main">Error saving!</Typography>}
+                    <Button variant='contained' type='submit' size='large' disabled={saveStatus === 'saving'}>
+                        {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save Changes'}
                     </Button>
                 </Grid>
             </Grid>

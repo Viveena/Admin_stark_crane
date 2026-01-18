@@ -21,21 +21,21 @@ import TableRow from '@mui/material/TableRow'
 import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
-import NewsEditor from '../NewsEditor'
+import NewsEditor, { NewsPost } from '../NewsEditor'
 import AddCategoryDrawer from './AddCategoryDrawer'
 import usePermission from '@/hooks/usePermission'
-
-type NewsPost = {
-    id: string
-    newsHeadline: string
-    category: string
-    status: string
-    publishedDate: string | null
-    updatedAt: string
-}
+import { usePageSection } from '@/hooks/usePageSection'
 
 const NewsList = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'news',
+        sectionKey: 'items'
+    });
+
     const [news, setNews] = useState<NewsPost[]>([])
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
     const [newsDrawerOpen, setNewsDrawerOpen] = useState(false)
@@ -47,30 +47,54 @@ const NewsList = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10)
     const [searchTerm, setSearchTerm] = useState('')
 
-    const fetchNews = () => {
-        const savedNews = JSON.parse(localStorage.getItem('news-posts') || '[]')
-        setNews(savedNews)
-    }
-
+    // Sync from hook
     useEffect(() => {
-        fetchNews()
-    }, [])
+        if (sectionData) {
+            if (Array.isArray(sectionData.items)) {
+                setNews(sectionData.items);
+            } else if (Array.isArray(sectionData)) {
+                setNews(sectionData);
+            } else {
+                setNews([]);
+            }
+        }
+    }, [sectionData])
 
     const handleEdit = (post: NewsPost) => {
         setSelectedNews(post)
         setNewsDrawerOpen(true)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this news?')) {
             const updatedNews = news.filter(item => item.id !== id)
-            localStorage.setItem('news-posts', JSON.stringify(updatedNews))
-            setNews(updatedNews)
+            setNews(updatedNews); // Optimistic
+            try {
+                await saveSection({ items: updatedNews });
+            } catch (e) {
+                console.error("Failed to delete news", e);
+            }
         }
     }
 
+    const handleNewsSave = async (itemData: NewsPost) => {
+        let newData;
+        if (selectedNews) {
+            // Update
+            newData = news.map(item => item.id === itemData.id ? itemData : item);
+        } else {
+            // Add
+            newData = [...news, itemData];
+        }
+
+        setNews(newData);
+        setNewsDrawerOpen(false);
+        setSelectedNews(undefined);
+        await saveSection({ items: newData });
+    }
+
     const handleNewsSuccess = () => {
-        fetchNews()
+        // managed by onSave now generally
         setNewsDrawerOpen(false)
         setSelectedNews(undefined)
     }
@@ -107,6 +131,7 @@ const NewsList = () => {
                 title='News List'
                 action={
                     <div className='flex gap-2 items-center'>
+                        {loading && <CircularProgress size={20} />}
                         <TextField
                             size='small'
                             placeholder='Search News...'
@@ -132,6 +157,8 @@ const NewsList = () => {
                     </div>
                 }
             />
+            {error && <Alert severity='error' className='m-4'>{error}</Alert>}
+
             <CardContent>
                 <TableContainer>
                     <Table>
@@ -224,8 +251,9 @@ const NewsList = () => {
                     <NewsEditor
                         isDrawer={true}
                         handleClose={handleNewsDrawerClose}
-                        onSuccess={handleNewsSuccess}
+                        onSave={handleNewsSave}
                         dataToEdit={selectedNews}
+                        allNews={news}
                     />
                 </div>
             </Drawer>

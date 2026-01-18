@@ -1,17 +1,13 @@
 'use client'
 
 // React Imports
-import { useState, useEffect, useMemo } from 'react'
-
-// Next Imports
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
-import Chip from '@mui/material/Chip'
 import IconButton from '@mui/material/IconButton'
 import Drawer from '@mui/material/Drawer'
 import Table from '@mui/material/Table'
@@ -23,9 +19,8 @@ import TableRow from '@mui/material/TableRow'
 import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
-
-// Third-party Imports
-import classnames from 'classnames'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Type Imports
 import type { LocationType } from '../LocationEditor'
@@ -33,7 +28,16 @@ import type { LocationType } from '../LocationEditor'
 // Component Imports
 import LocationEditor from '../LocationEditor'
 
+// Hook Imports
+import { usePageSection } from '@/hooks/usePageSection'
+
 const LocationList = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'location',
+        sectionKey: 'items'
+    });
+
     // States
     const [data, setData] = useState<LocationType[]>([])
     const [filteredData, setFilteredData] = useState<LocationType[]>([])
@@ -43,19 +47,22 @@ const LocationList = () => {
     const [editorOpen, setEditorOpen] = useState(false)
     const [editingNode, setEditingNode] = useState<LocationType | undefined>(undefined)
 
-    // Load data from localStorage
-    const loadData = () => {
-        const savedData = localStorage.getItem('location-list')
-        if (savedData) {
-            const parsedData = JSON.parse(savedData)
-            setData(parsedData)
-            setFilteredData(parsedData)
-        }
-    }
-
+    // Sync from hook
     useEffect(() => {
-        loadData()
-    }, [])
+        if (sectionData) {
+            if (Array.isArray(sectionData.items)) {
+                setData(sectionData.items);
+                setFilteredData(sectionData.items);
+            } else if (Array.isArray(sectionData)) {
+                // Fallback / legacy support
+                setData(sectionData);
+                setFilteredData(sectionData);
+            } else {
+                setData([]);
+                setFilteredData([]);
+            }
+        }
+    }, [sectionData])
 
     // Filter data based on search term
     useEffect(() => {
@@ -88,17 +95,31 @@ const LocationList = () => {
         setEditorOpen(true)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this location?')) {
             const newData = data.filter(item => item.id !== id)
-            localStorage.setItem('location-list', JSON.stringify(newData))
-            loadData()
+            setData(newData); // Optimistic
+            try {
+                await saveSection({ items: newData });
+            } catch (e) {
+                console.error("Failed to delete", e);
+            }
         }
     }
 
-    const handleEditorSuccess = () => {
-        loadData()
-        setEditorOpen(false)
+    const handleEditorSave = async (itemData: LocationType) => {
+        let newData;
+        if (editingNode) {
+            // Update
+            newData = data.map(item => item.id === itemData.id ? itemData : item);
+        } else {
+            // Add
+            newData = [...data, itemData];
+        }
+
+        setData(newData);
+        setEditorOpen(false);
+        await saveSection({ items: newData });
     }
 
     return (
@@ -107,6 +128,7 @@ const LocationList = () => {
                 title='Locations'
                 action={
                     <div className='flex gap-4 items-center'>
+                        {loading && <CircularProgress size={20} />}
                         <TextField
                             size='small'
                             placeholder='Search Location'
@@ -126,6 +148,8 @@ const LocationList = () => {
                     </div>
                 }
             />
+            {error && <Alert severity='error' className='m-4'>{error}</Alert>}
+
             <TableContainer>
                 <Table>
                     <TableHead>
@@ -198,7 +222,7 @@ const LocationList = () => {
                     <LocationEditor
                         isDrawer
                         handleClose={() => setEditorOpen(false)}
-                        onSuccess={handleEditorSuccess}
+                        onSave={handleEditorSave}
                         dataToEdit={editingNode}
                     />
                 </div>

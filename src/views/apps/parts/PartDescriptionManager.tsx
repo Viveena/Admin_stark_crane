@@ -17,25 +17,34 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Local Imports
 import PartDescriptionEditor, { PartDescriptionType } from './PartDescriptionEditor'
+import { usePageSection } from '@/hooks/usePageSection'
 
 const PartDescriptionManager = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'parts',
+        sectionKey: 'descriptions_list'
+    });
+
     // State
     const [partsList, setPartsList] = useState<PartDescriptionType[]>([])
     const [view, setView] = useState<'list' | 'editor'>('list')
     const [editingPart, setEditingPart] = useState<PartDescriptionType | undefined>(undefined)
+    const [isSaving, setIsSaving] = useState(false);
 
-    // Load parts from localStorage
+    // Load parts from Hook
     useEffect(() => {
-        const savedParts = localStorage.getItem('part-descriptions')
-        if (savedParts) {
-            setPartsList(JSON.parse(savedParts))
+        if (sectionData && sectionData.items) {
+            setPartsList(sectionData.items);
         }
-    }, [])
+    }, [sectionData])
 
-    const handleSavePart = (data: PartDescriptionType) => {
+    const handleSavePart = async (data: PartDescriptionType) => {
         let updatedList = [...partsList]
         if (data.id) {
             // Update existing
@@ -46,17 +55,35 @@ const PartDescriptionManager = () => {
             updatedList.push(newPart)
         }
 
-        setPartsList(updatedList)
-        localStorage.setItem('part-descriptions', JSON.stringify(updatedList))
-        setView('list')
-        setEditingPart(undefined)
+        setIsSaving(true);
+        try {
+            // We save the entire list as one section "descriptions_list" containing "items"
+            await saveSection({ items: updatedList });
+            setPartsList(updatedList)
+            setView('list')
+            setEditingPart(undefined)
+        } catch (e) {
+            console.error(e);
+            alert("Failed to save part description");
+        } finally {
+            setIsSaving(false);
+        }
     }
 
-    const handleDeletePart = (id: string) => {
+    const handleDeletePart = async (id: string) => {
         if (confirm('Are you sure you want to delete this part?')) {
             const updatedList = partsList.filter(part => part.id !== id)
-            setPartsList(updatedList)
-            localStorage.setItem('part-descriptions', JSON.stringify(updatedList))
+
+            setIsSaving(true);
+            try {
+                await saveSection({ items: updatedList });
+                setPartsList(updatedList)
+            } catch (e) {
+                console.error(e);
+                alert("Failed to delete part");
+            } finally {
+                setIsSaving(false);
+            }
         }
     }
 
@@ -81,6 +108,7 @@ const PartDescriptionManager = () => {
                 dataToEdit={editingPart}
                 onSave={handleSavePart}
                 onCancel={handleCancel}
+                uploadImage={uploadImage} // Pass the upload hook down
             />
         )
     }
@@ -96,6 +124,10 @@ const PartDescriptionManager = () => {
                 }
             />
             <CardContent>
+                {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+                {isSaving && <div className="mb-4"><CircularProgress size={20} /> Saving changes...</div>}
+
                 <TableContainer component={Paper} className='shadow-none border'>
                     <Table>
                         <TableHead>
@@ -125,7 +157,7 @@ const PartDescriptionManager = () => {
                                             <IconButton size='small' color='primary' onClick={() => handleEditPart(part)}>
                                                 <i className='ri-pencil-line' />
                                             </IconButton>
-                                            <IconButton size='small' color='error' onClick={() => handleDeletePart(part.id)}>
+                                            <IconButton size='small' color='error' onClick={() => handleDeletePart(part.id)} disabled={isSaving}>
                                                 <i className='ri-delete-bin-line' />
                                             </IconButton>
                                         </TableCell>

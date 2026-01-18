@@ -14,6 +14,7 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
@@ -21,6 +22,7 @@ import { useForm, Controller, useFieldArray } from 'react-hook-form'
 // Local Imports
 import IndustryRelated, { RelatedContentData } from './IndustryRelated'
 import TextEditor from '@/components/TextEditor'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type DynamicSection = {
     heading: string
@@ -46,10 +48,20 @@ type Props = {
     isDrawer?: boolean
     handleClose?: () => void
     dataToEdit?: IndustryType
-    onSuccess?: () => void
+    onSave?: (data: IndustryType) => Promise<void> | void
 }
 
-const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => {
+const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSave }: Props) => {
+    // We utilize usePageSection here specifically for the image upload utility
+    // We do not READ the list from here, the list is passed to us or managed by parent
+    const { uploadImage } = usePageSection({
+        pageKey: 'industry',
+        sectionKey: 'temp' // Key doesn't matter for upload only
+    });
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File }>({});
+
     const {
         control,
         handleSubmit,
@@ -112,28 +124,50 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
         }
     }, [dataToEdit, reset])
 
-    const onSubmit = (data: FormValues) => {
-        const savedIndustries = JSON.parse(localStorage.getItem('industry-list') || '[]')
-        const timestamp = new Date().toISOString()
+    const handleFileSelect = (key: string, file: File, field: any) => {
+        setSelectedFiles(prev => ({ ...prev, [key]: file }));
+        field.onChange(file.name);
+    }
 
-        let newIndustryList
-        if (dataToEdit) {
-            newIndustryList = savedIndustries.map((item: IndustryType) =>
-                item.id === dataToEdit.id ? { ...item, ...data, updatedAt: timestamp } : item
-            )
-        } else {
-            const newItem = {
-                id: Date.now().toString(),
-                ...data,
-                updatedAt: timestamp
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // 1. Upload Hero Image
+            let heroImageUrl = data.heroImage;
+            if (selectedFiles['heroImage']) {
+                heroImageUrl = await uploadImage(selectedFiles['heroImage']);
             }
-            newIndustryList = [...savedIndustries, newItem]
+
+            // 2. Upload Dynamic Section Images
+            const updatedDynamicSections = await Promise.all(data.dynamicSections.map(async (section, index) => {
+                let sectionImageUrl = section.image;
+                const fileKey = `dynamicSection-${index}`;
+                if (selectedFiles[fileKey]) {
+                    sectionImageUrl = await uploadImage(selectedFiles[fileKey]);
+                }
+                return { ...section, image: sectionImageUrl };
+            }));
+
+            const timestamp = new Date().toISOString()
+            const finalData: IndustryType = {
+                id: dataToEdit?.id || Date.now().toString(),
+                updatedAt: timestamp,
+                ...data,
+                heroImage: heroImageUrl,
+                dynamicSections: updatedDynamicSections
+            };
+
+            if (onSave) {
+                await onSave(finalData);
+            }
+
+            if (handleClose) handleClose()
+        } catch (error) {
+            console.error("Error saving industry:", error);
+            alert("Failed to save industry. Please try again.");
+        } finally {
+            setIsSaving(false);
         }
-
-        localStorage.setItem('industry-list', JSON.stringify(newIndustryList))
-
-        if (onSuccess) onSuccess()
-        if (handleClose) handleClose()
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
@@ -204,7 +238,12 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['heroImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -222,11 +261,19 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('heroImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['heroImage']) && (
+                                                    <img
+                                                        src={selectedFiles['heroImage'] ? URL.createObjectURL(selectedFiles['heroImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -259,7 +306,13 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                     <Grid size={{ xs: 12 }} key={item.id} className='border rounded p-4 relative'>
                                         <div className='flex justify-between items-center mbe-4'>
                                             <Typography variant='h6'>Section {index + 1}</Typography>
-                                            <IconButton size='small' color='error' onClick={() => remove(index)}>
+                                            <IconButton size='small' color='error' onClick={() => {
+                                                remove(index);
+                                                // Cleanup file selection
+                                                const newFiles = { ...selectedFiles };
+                                                delete newFiles[`dynamicSection-${index}`];
+                                                setSelectedFiles(newFiles);
+                                            }}>
                                                 <i className='ri-delete-bin-line' />
                                             </IconButton>
                                         </div>
@@ -293,6 +346,22 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                                 placeholder='No file chosen'
                                                                 variant='outlined'
                                                                 label='Section Image'
+                                                                slotProps={{
+                                                                    input: {
+                                                                        endAdornment: field.value ? (
+                                                                            <InputAdornment position='end'>
+                                                                                <IconButton size='small' edge='end' onClick={() => {
+                                                                                    field.onChange('');
+                                                                                    const newFiles = { ...selectedFiles };
+                                                                                    delete newFiles[`dynamicSection-${index}`];
+                                                                                    setSelectedFiles(newFiles);
+                                                                                }}>
+                                                                                    <i className='ri-close-line' />
+                                                                                </IconButton>
+                                                                            </InputAdornment>
+                                                                        ) : null
+                                                                    }
+                                                                }}
                                                             />
                                                             <Button component='label' variant='outlined' htmlFor={`industry-section-image-${index}`} className='min-is-fit'>
                                                                 Choose
@@ -304,11 +373,19 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                                                                     onChange={(event) => {
                                                                         const { files } = event.target
                                                                         if (files && files.length !== 0) {
-                                                                            field.onChange(files[0].name)
+                                                                            handleFileSelect(`dynamicSection-${index}`, files[0], field);
                                                                         }
                                                                     }}
                                                                 />
                                                             </Button>
+                                                            {/* Preview */}
+                                                            {(field.value || selectedFiles[`dynamicSection-${index}`]) && (
+                                                                <img
+                                                                    src={selectedFiles[`dynamicSection-${index}`] ? URL.createObjectURL(selectedFiles[`dynamicSection-${index}`]) : field.value}
+                                                                    alt="Preview"
+                                                                    className="h-10 w-10 object-cover rounded"
+                                                                />
+                                                            )}
                                                         </div>
                                                     )}
                                                 />
@@ -353,14 +430,14 @@ const IndustryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props)
                     </Card>
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
                     {isDrawer && handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        {dataToEdit ? 'Update Industry' : 'Save Industry'}
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (dataToEdit ? 'Update Industry' : 'Save Industry')}
                     </Button>
                 </Grid>
             </Grid>

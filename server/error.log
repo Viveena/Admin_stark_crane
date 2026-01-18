@@ -1,0 +1,5 @@
+2026-01-18T10:06:01.206Z - UpdatePage Error: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:183:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async testController (E:\Admin\Stark_Crane_Admin\server\debug_controller.js:29:9)

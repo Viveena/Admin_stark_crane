@@ -15,6 +15,8 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import IconButton from '@mui/material/IconButton'
 import { styled } from '@mui/material/styles'
 import type { BoxProps } from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
@@ -23,6 +25,9 @@ import { useDropzone } from 'react-dropzone'
 // Component Imports
 import TextEditor from '@components/TextEditor'
 import AppReactDropzone from '@/libs/styles/AppReactDropzone'
+
+// Hook Import
+import { usePageSection } from '@/hooks/usePageSection'
 
 // Styled Dropzone
 const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
@@ -36,31 +41,43 @@ const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
 }))
 
 const HomeAboutSection = () => {
+    // Hook for API interaction
+    const { data: sectionData, loading: dataLoading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'home',
+        sectionKey: 'about'
+    })
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
     // Local Form
-    const { control, handleSubmit, reset, setValue } = useForm({
+    const { control, handleSubmit, reset, setValue, watch } = useForm({
         defaultValues: {
             isVisible: true,
             title: '',
             text: '',
-            image: null
+            image: null,
+            imageUrl: '' // Store generic URL here
         }
     })
 
     const [files, setFiles] = useState<File[]>([])
 
-    // Load data
+    // Watch image for preview if needed, though we track files state separately for upload
+    const currentImageUrl = watch('imageUrl');
+
+    // Load data when fetched
     useEffect(() => {
-        const savedData = localStorage.getItem('home_about_data')
-        if (savedData) {
-            const parsed = JSON.parse(savedData)
+        if (sectionData) {
             reset({
-                isVisible: parsed.isVisible !== undefined ? parsed.isVisible : true,
-                title: parsed.title || '',
-                text: parsed.text || '',
+                isVisible: sectionData.isVisible !== undefined ? sectionData.isVisible : true,
+                title: sectionData.title || '',
+                text: sectionData.text || '',
+                imageUrl: sectionData.imageUrl || '',
                 image: null
             })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
     const { getRootProps, getInputProps } = useDropzone({
         maxFiles: 1,
@@ -76,14 +93,41 @@ const HomeAboutSection = () => {
         }
     })
 
-    const onSubmit = (data: any) => {
-        localStorage.setItem('home_about_data', JSON.stringify({
-            isVisible: data.isVisible,
-            title: data.title,
-            text: data.text
-        }))
-        console.log('Home About Saved:', data)
-        alert('Home About Saved')
+    const onSubmit = async (data: any) => {
+        setIsSaving(true);
+        setSaveMessage(null);
+        try {
+            let finalImageUrl = data.imageUrl;
+
+            // Upload image if a new file is selected
+            if (data.image && data.image instanceof File) {
+                // Upload logic
+                const uploadedUrl = await uploadImage(data.image);
+                finalImageUrl = uploadedUrl;
+            }
+
+            // Save section data
+            await saveSection({
+                isVisible: data.isVisible,
+                title: data.title,
+                text: data.text,
+                imageUrl: finalImageUrl
+            });
+
+            // Update form with new URL if changed
+            if (finalImageUrl !== data.imageUrl) {
+                setValue('imageUrl', finalImageUrl);
+                setFiles([]); // Clear file selection on success
+                setValue('image', null);
+            }
+
+            setSaveMessage({ type: 'success', text: 'Section saved successfully!' });
+        } catch (err) {
+            console.error(err);
+            setSaveMessage({ type: 'error', text: 'Failed to save section.' });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     return (
@@ -91,6 +135,7 @@ const HomeAboutSection = () => {
             <form onSubmit={handleSubmit(onSubmit)}>
                 <CardHeader
                     title='About Us Section'
+                    subheader={meta?.updated_at ? `Last updated by ${meta.updated_by_name || 'User'} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
                     action={
                         <div className="flex items-center gap-4">
                             <Controller
@@ -103,62 +148,80 @@ const HomeAboutSection = () => {
                                     />
                                 )}
                             />
-                            <Button variant='contained' type='submit'>
-                                Save
+                            <Button
+                                variant='contained'
+                                type='submit'
+                                disabled={isSaving || dataLoading}
+                                startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : null}
+                            >
+                                {isSaving ? 'Saving...' : 'Save'}
                             </Button>
                         </div>
                     }
                 />
                 <CardContent>
-                    <div className='flex flex-col gap-6'>
-                        <Controller
-                            name='title'
-                            control={control}
-                            render={({ field }) => (
-                                <TextField
-                                    {...field}
-                                    fullWidth
-                                    label='Title'
-                                    placeholder='About Title'
-                                />
-                            )}
-                        />
-                        <Controller
-                            name='text'
-                            control={control}
-                            render={({ field }) => (
-                                <TextEditor
-                                    value={field.value}
-                                    onChange={field.onChange}
-                                    label='About Us Text...'
-                                />
-                            )}
-                        />
-                        <div>
-                            <Typography variant='caption' className='mb-2 block'>Section Image</Typography>
-                            <Dropzone>
-                                <div {...getRootProps({ className: 'dropzone' })}>
-                                    <input {...getInputProps()} />
-                                    {files.length > 0 ? (
-                                        <div className='flex items-center justify-between'>
-                                            <div className='flex items-center'>
-                                                <img width={38} height={38} alt={files[0].name} src={URL.createObjectURL(files[0])} className='mr-2' />
-                                                <Typography variant='body2'>{files[0].name}</Typography>
+                    {saveMessage && (
+                        <Alert severity={saveMessage.type} className='mb-4' onClose={() => setSaveMessage(null)}>
+                            {saveMessage.text}
+                        </Alert>
+                    )}
+
+                    {dataLoading && !sectionData ? (
+                        <div className="flex justify-center p-4"><CircularProgress /></div>
+                    ) : (
+                        <div className='flex flex-col gap-6'>
+                            <Controller
+                                name='title'
+                                control={control}
+                                render={({ field }) => (
+                                    <TextField
+                                        {...field}
+                                        fullWidth
+                                        label='Title'
+                                        placeholder='About Title'
+                                    />
+                                )}
+                            />
+                            <Controller
+                                name='text'
+                                control={control}
+                                render={({ field }) => (
+                                    <TextEditor
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                        label='About Us Text...'
+                                    />
+                                )}
+                            />
+                            <div>
+                                <Typography variant='caption' className='mb-2 block'>Section Image</Typography>
+                                <Dropzone>
+                                    <div {...getRootProps({ className: 'dropzone' })}>
+                                        <input {...getInputProps()} />
+                                        {files.length > 0 ? (
+                                            <div className='flex items-center justify-between'>
+                                                <div className='flex items-center'>
+                                                    <img width={38} height={38} alt={files[0].name} src={URL.createObjectURL(files[0])} className='mr-2' />
+                                                    <Typography variant='body2'>{files[0].name}</Typography>
+                                                </div>
+                                                <IconButton onClick={() => { setFiles([]); setValue('image', null) }}>
+                                                    <i className='ri-close-line' />
+                                                </IconButton>
                                             </div>
-                                            <IconButton onClick={() => { setFiles([]); setValue('image', null) }}>
-                                                <i className='ri-close-line' />
-                                            </IconButton>
-                                        </div>
-                                    ) : (
-                                        <div className='flex flex-col items-center gap-2'>
-                                            <i className='ri-upload-2-line text-xl' />
-                                            <Typography variant='caption'>Upload Image</Typography>
-                                        </div>
-                                    )}
-                                </div>
-                            </Dropzone>
+                                        ) : (
+                                            <div className='flex flex-col items-center gap-2'>
+                                                {currentImageUrl && (
+                                                    <img src={currentImageUrl} alt="Current Section" className="h-20 object-contain mb-2" />
+                                                )}
+                                                <i className='ri-upload-2-line text-xl' />
+                                                <Typography variant='caption'>Upload New Image</Typography>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Dropzone>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </CardContent>
             </form>
         </Card>

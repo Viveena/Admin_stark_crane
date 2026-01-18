@@ -27,6 +27,7 @@ import Radio from '@mui/material/Radio'
 import RadioGroup from '@mui/material/RadioGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import FormLabel from '@mui/material/FormLabel'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -43,6 +44,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 // Local Imports
 import EditorToolbar from './EditorToolbar'
 import '@/libs/styles/tiptapEditor.css'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type Section = {
     title: string
@@ -65,12 +67,17 @@ type Category = {
     title: string
 }
 
-type NewsPost = {
+export type NewsPost = {
     id: string
     newsHeadline: string
     status: string
     publishedDate: string | null
-    /* ... other fields ... */
+    category: string
+    mainImage: string
+    relatedNews: string[]
+    sections: Section[]
+    updatedAt: string
+    publishedAt?: string
 }
 
 type Props = {
@@ -78,6 +85,8 @@ type Props = {
     handleClose?: () => void
     dataToEdit?: NewsPost
     onSuccess?: () => void
+    onSave?: (data: NewsPost) => Promise<void> | void
+    allNews?: NewsPost[]
 }
 
 const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: string) => void }) => {
@@ -99,6 +108,13 @@ const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: 
         immediatelyRender: false
     })
 
+    // Update content if value changes externally
+    useEffect(() => {
+        if (editor && value !== editor.getHTML()) {
+            editor.commands.setContent(value);
+        }
+    }, [value, editor]);
+
     return (
         <Card className='p-0 border shadow-none'>
             <CardContent className='p-0'>
@@ -110,11 +126,39 @@ const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: 
     )
 }
 
-const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => {
+const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess, onSave, allNews = [] }: Props) => {
+    // Hook for Categories (Read Only)
+    const { data: categoriesData } = usePageSection({
+        pageKey: 'news',
+        sectionKey: 'categories'
+    });
+
+    // Hook for Uploads
+    const { uploadImage } = usePageSection({
+        pageKey: 'news',
+        sectionKey: 'temp'
+    });
+
     const [categories, setCategories] = useState<Category[]>([])
-    const [allNews, setAllNews] = useState<NewsPost[]>([])
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File }>({});
+    const [sectionFiles, setSectionFiles] = useState<{ [index: number]: File }>({});
+
     const router = useRouter()
     const searchParams = useSearchParams()
+
+    // Sync categories
+    useEffect(() => {
+        if (categoriesData) {
+            if (Array.isArray(categoriesData)) {
+                setCategories(categoriesData);
+            } else if (categoriesData.categories && Array.isArray(categoriesData.categories)) {
+                setCategories(categoriesData.categories);
+            } else {
+                setCategories([]);
+            }
+        }
+    }, [categoriesData])
 
     // Use dataToEdit id if in drawer, else URL param
     const editId = isDrawer ? dataToEdit?.id : searchParams?.get('id')
@@ -146,77 +190,85 @@ const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => 
     })
 
     useEffect(() => {
-        // Load Categories
-        const savedCategories = localStorage.getItem('news-categories')
-        if (savedCategories) {
-            setCategories(JSON.parse(savedCategories))
-        } else {
-            // Default categories if none exist
-            const defaultCategories = [{ id: '1', title: 'Startups' }, { id: '2', title: 'Technology' }, { id: '3', title: 'Business' }]
-            setCategories(defaultCategories)
-            localStorage.setItem('news-categories', JSON.stringify(defaultCategories))
+        if (editId && dataToEdit) {
+            reset({
+                category: dataToEdit.category || '',
+                newsHeadline: dataToEdit.newsHeadline || '',
+                mainImage: dataToEdit.mainImage || '',
+                relatedNews: dataToEdit.relatedNews || [],
+                sections: dataToEdit.sections || [{ title: '', content: '', imageUrl: '' }],
+                status: (dataToEdit.status as any) || 'draft',
+                publishedDate: dataToEdit.publishedDate ? new Date(dataToEdit.publishedDate) : new Date()
+            })
         }
+    }, [editId, reset, dataToEdit])
 
-        const savedNews = JSON.parse(localStorage.getItem('news-posts') || '[]')
-        setAllNews(savedNews)
+    const handleFileSelect = (key: string, file: File, field: any) => {
+        setSelectedFiles(prev => ({ ...prev, [key]: file }));
+        field.onChange(file.name);
+    }
 
-        if (editId && (dataToEdit || !isDrawer)) {
-            const postToEdit = dataToEdit || savedNews.find((post: any) => post.id === editId)
+    // For section images
+    const handleSectionFileSelect = (index: number, file: File, onChange: (val: string) => void) => {
+        setSectionFiles(prev => ({ ...prev, [index]: file }));
+        onChange(file.name); // Store filename temporarily
+    }
 
-            if (postToEdit) {
-                reset({
-                    category: postToEdit.category || '',
-                    newsHeadline: postToEdit.newsHeadline || '',
-                    mainImage: postToEdit.mainImage || '',
-                    relatedNews: postToEdit.relatedNews || [],
-                    sections: postToEdit.sections || [{ title: '', content: '', imageUrl: '' }],
-                    status: postToEdit.status || 'draft',
-                    publishedDate: postToEdit.publishedDate ? new Date(postToEdit.publishedDate) : new Date()
-                })
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // Upload Main Image
+            let mainImageUrl = data.mainImage;
+            if (selectedFiles['mainImage']) {
+                mainImageUrl = await uploadImage(selectedFiles['mainImage']);
             }
-        }
-    }, [editId, reset, dataToEdit, isDrawer])
 
-    const onSubmit = (data: FormValues) => {
-        const savedNews = JSON.parse(localStorage.getItem('news-posts') || '[]')
-        const timestamp = new Date().toISOString()
+            // Upload Section Images
+            const processedSections = await Promise.all(data.sections.map(async (section, index) => {
+                let sectionImageUrl = section.imageUrl;
+                if (sectionFiles[index]) {
+                    sectionImageUrl = await uploadImage(sectionFiles[index]);
+                }
+                return {
+                    ...section,
+                    imageUrl: sectionImageUrl
+                };
+            }));
 
-        let finalStatus = data.status
-        // Logic: if user clicks "Publish now" -> date is now. If "Schedule" -> check date.
-        // But here we rely on form values.
+            const timestamp = new Date().toISOString()
+            const finalData: NewsPost = {
+                id: dataToEdit?.id || Date.now().toString(),
+                updatedAt: timestamp,
+                ...data,
+                publishedDate: data.publishedDate ? data.publishedDate.toISOString() : null,
+                mainImage: mainImageUrl,
+                sections: processedSections,
+                publishedAt: (!editId && data.status === 'published') ? timestamp : (dataToEdit?.publishedAt || undefined)
+            };
 
-        const finalData = {
-            ...data,
-            publishedDate: data.publishedDate ? data.publishedDate.toISOString() : null
-        }
-
-        let newNewsList
-        if (editId) {
-            newNewsList = savedNews.map((post: any) =>
-                post.id === editId ? { ...post, ...finalData, updatedAt: timestamp } : post
-            )
-        } else {
-            const newPost = {
-                id: Date.now().toString(),
-                ...finalData,
-                publishedAt: timestamp,
-                updatedAt: timestamp
+            if (onSave) {
+                await onSave(finalData);
             }
-            newNewsList = [...savedNews, newPost]
-        }
 
-        localStorage.setItem('news-posts', JSON.stringify(newNewsList))
-
-        if (isDrawer) {
-            if (onSuccess) onSuccess()
-            if (handleClose) handleClose()
-        } else {
-            alert(editId ? 'News Updated!' : 'News Published!')
-            if (!editId) {
-                reset()
+            if (isDrawer) {
+                if (onSuccess) onSuccess()
+                if (handleClose) handleClose()
             } else {
-                router.push('/apps/news/list')
+                alert(editId ? 'News Updated!' : 'News Published!')
+                if (!editId) {
+                    reset()
+                    setSelectedFiles({});
+                    setSectionFiles({});
+                } else {
+                    router.push('/apps/news/list')
+                }
             }
+
+        } catch (error) {
+            console.error("Error saving news:", error);
+            alert("Failed to save news.");
+        } finally {
+            setIsSaving(false);
         }
     }
 
@@ -320,7 +372,12 @@ const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => 
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['mainImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -338,11 +395,19 @@ const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => 
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('mainImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['mainImage']) && (
+                                                    <img
+                                                        src={selectedFiles['mainImage'] ? URL.createObjectURL(selectedFiles['mainImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -451,7 +516,12 @@ const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => 
                                                             input: {
                                                                 endAdornment: field.value ? (
                                                                     <InputAdornment position='end'>
-                                                                        <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                        <IconButton size='small' edge='end' onClick={() => {
+                                                                            field.onChange('');
+                                                                            const newFiles = { ...sectionFiles };
+                                                                            delete newFiles[index];
+                                                                            setSectionFiles(newFiles);
+                                                                        }}>
                                                                             <i className='ri-close-line' />
                                                                         </IconButton>
                                                                     </InputAdornment>
@@ -471,11 +541,19 @@ const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => 
                                                     onChange={(event) => {
                                                         const { files } = event.target
                                                         if (files && files.length !== 0) {
-                                                            setValue(`sections.${index}.imageUrl`, files[0].name)
+                                                            handleSectionFileSelect(index, files[0], setValue.bind(null, `sections.${index}.imageUrl`));
                                                         }
                                                     }}
                                                 />
                                             </Button>
+                                            {/* Preview */}
+                                            {watch(`sections.${index}.imageUrl`) && (
+                                                <img
+                                                    src={sectionFiles[index] ? URL.createObjectURL(sectionFiles[index]) : watch(`sections.${index}.imageUrl`)}
+                                                    alt="Preview"
+                                                    className="h-10 w-10 object-cover rounded"
+                                                />
+                                            )}
                                         </div>
                                     </Grid>
                                     <Grid size={{ xs: 12 }}>
@@ -494,14 +572,14 @@ const NewsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => 
                     </Grid>
                 ))}
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
                     {isDrawer && handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        {editId ? 'Update News' : 'Publish News'}
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (editId ? 'Update News' : 'Publish News')}
                     </Button>
                 </Grid>
             </Grid>

@@ -14,12 +14,15 @@ import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 
 // Local Imports
 import PartsRelated, { RelatedContentData } from './PartsRelated'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type DynamicSectionItem = {
     title: string
@@ -36,12 +39,9 @@ type TechSpecCardItem = {
 type DescriptionFormValues = {
     partName: string
     partBrand: string
-
     dynamicSections: DynamicSectionItem[]
-
     techSpecsTitle: string
     techSpecCards: TechSpecCardItem[]
-
     relatedContent: RelatedContentData
 }
 
@@ -50,6 +50,16 @@ type Props = {
 }
 
 const PartDescriptionSettings = ({ handleClose }: Props) => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'parts',
+        sectionKey: 'description'
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    // Using string keys like "dynamicSections-0", "techSpecCards-1" to map files
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File }>({});
+
     const {
         control,
         handleSubmit,
@@ -87,23 +97,74 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
     const relatedContentValue = watch('relatedContent')
 
     useEffect(() => {
-        const savedSettings = localStorage.getItem('part-description')
-        if (savedSettings) {
-            reset(JSON.parse(savedSettings))
+        if (sectionData) {
+            reset({
+                partName: sectionData.partName || '',
+                partBrand: sectionData.partBrand || '',
+                dynamicSections: sectionData.dynamicSections || [],
+                techSpecsTitle: sectionData.techSpecsTitle || 'Technical Specifications',
+                techSpecCards: sectionData.techSpecCards || [],
+                relatedContent: sectionData.relatedContent || {
+                    sectionTypes: [],
+                    relatedBlogs: [],
+                    relatedServices: [],
+                    relatedParts: [],
+                    relatedProjects: []
+                }
+            })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: DescriptionFormValues) => {
-        localStorage.setItem('part-description', JSON.stringify(data))
-        alert('Part Description Page Settings Saved!')
-        if (handleClose) handleClose()
+    const onSubmit = async (data: DescriptionFormValues) => {
+        setSaveStatus('saving');
+        try {
+            // Process uploads for Dynamic Sections
+            const updatedDynamicSections = await Promise.all(data.dynamicSections.map(async (item, index) => {
+                let imageUrl = item.image;
+                const fileKey = `dynamicSections-${index}`;
+                if (selectedFiles[fileKey]) {
+                    imageUrl = await uploadImage(selectedFiles[fileKey]);
+                }
+                return { ...item, image: imageUrl };
+            }));
+
+            // Process uploads for Tech Spec Cards
+            const updatedTechSpecCards = await Promise.all(data.techSpecCards.map(async (item, index) => {
+                let imageUrl = item.image;
+                const fileKey = `techSpecCards-${index}`;
+                if (selectedFiles[fileKey]) {
+                    imageUrl = await uploadImage(selectedFiles[fileKey]);
+                }
+                return { ...item, image: imageUrl };
+            }));
+
+            const dataToSave = {
+                ...data,
+                dynamicSections: updatedDynamicSections,
+                techSpecCards: updatedTechSpecCards
+            };
+
+            await saveSection(dataToSave);
+            setSaveStatus('success');
+            setTimeout(() => setSaveStatus('idle'), 3000);
+            if (handleClose) handleClose();
+        } catch (err) {
+            console.error(err);
+            setSaveStatus('error');
+        }
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
         setValue('relatedContent', data)
     }
 
-    const renderImageInput = (controlName: any, label: string) => (
+    const handleFileSelect = (keyPrefix: string, index: number, file: File, field: any) => {
+        const key = `${keyPrefix}-${index}`;
+        setSelectedFiles(prev => ({ ...prev, [key]: file }));
+        field.onChange(file.name);
+    }
+
+    const renderImageInput = (controlName: any, label: string, keyPrefix: string, index: number) => (
         <Controller
             name={controlName}
             control={control}
@@ -119,7 +180,13 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
                             input: {
                                 endAdornment: field.value ? (
                                     <InputAdornment position='end'>
-                                        <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                        <IconButton size='small' edge='end' onClick={() => {
+                                            field.onChange('');
+                                            const key = `${keyPrefix}-${index}`;
+                                            const newFiles = { ...selectedFiles };
+                                            delete newFiles[key];
+                                            setSelectedFiles(newFiles);
+                                        }}>
                                             <i className='ri-close-line' />
                                         </IconButton>
                                     </InputAdornment>
@@ -137,11 +204,19 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
                             onChange={(event) => {
                                 const { files } = event.target
                                 if (files && files.length !== 0) {
-                                    field.onChange(files[0].name)
+                                    handleFileSelect(keyPrefix, index, files[0], field);
                                 }
                             }}
                         />
                     </Button>
+                    {/* Preview */}
+                    {(field.value || selectedFiles[`${keyPrefix}-${index}`]) && (
+                        <img
+                            src={selectedFiles[`${keyPrefix}-${index}`] ? URL.createObjectURL(selectedFiles[`${keyPrefix}-${index}`]) : field.value}
+                            alt="Preview"
+                            className="h-10 w-10 object-cover rounded"
+                        />
+                    )}
                 </div>
             )}
         />
@@ -151,8 +226,16 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
         <form onSubmit={handleSubmit(onSubmit)}>
             <Grid container spacing={8}>
                 <Grid size={{ xs: 12 }}>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
                     <Card className='shadow-none border-none'>
-                        <CardHeader title='Part Description Page Configuration' />
+                        <CardHeader
+                            title='Part Description Page Configuration'
+                            subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
+                        />
                         <CardContent>
                             <Grid container spacing={6}>
 
@@ -216,7 +299,7 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
                                                     />
                                                 </Grid>
                                                 <Grid size={{ xs: 12 }}>
-                                                    {renderImageInput(`dynamicSections.${index}.image`, 'Section Image')}
+                                                    {renderImageInput(`dynamicSections.${index}.image`, 'Section Image', 'dynamicSections', index)}
                                                 </Grid>
                                                 <Grid size={{ xs: 12 }}>
                                                     <Controller
@@ -286,7 +369,7 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
                                                     />
                                                 </Grid>
                                                 <Grid size={{ xs: 12 }}>
-                                                    {renderImageInput(`techSpecCards.${index}.image`, 'Card Image (Icon)')}
+                                                    {renderImageInput(`techSpecCards.${index}.image`, 'Card Image (Icon)', 'techSpecCards', index)}
                                                 </Grid>
                                                 <Grid size={{ xs: 12 }}>
                                                     <Controller
@@ -331,14 +414,16 @@ const PartDescriptionSettings = ({ handleClose }: Props) => {
                     </Card>
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
+                    {saveStatus === 'success' && <Typography color="success.main">Saved!</Typography>}
+                    {saveStatus === 'error' && <Typography color="error.main">Error saving!</Typography>}
                     {handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        Save Description Settings
+                    <Button variant='contained' size='large' type='submit' disabled={saveStatus === 'saving'}>
+                        {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save Description Settings'}
                     </Button>
                 </Grid>
             </Grid>

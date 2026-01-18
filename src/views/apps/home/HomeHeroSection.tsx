@@ -18,6 +18,8 @@ import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useDropzone } from 'react-dropzone'
@@ -26,6 +28,9 @@ import { Controller, useForm } from 'react-hook-form'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import AppReactDropzone from '@/libs/styles/AppReactDropzone'
+
+// Hook Import
+import { usePageSection } from '@/hooks/usePageSection'
 
 type FileProp = {
     name: string
@@ -48,6 +53,14 @@ const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
 }))
 
 const HomeHeroSection = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'home',
+        sectionKey: 'hero'
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
     // Local Form
     const { control, handleSubmit, setValue, reset, watch } = useForm({
         defaultValues: {
@@ -55,27 +68,25 @@ const HomeHeroSection = () => {
             title: '',
             subtitle: '',
             btnText: '',
-            image: null
+            image: null as string | null
         }
     })
 
     const [files, setFiles] = useState<File[]>([])
     const isVisible = watch('isVisible')
 
-    // Load data
+    // Load data from hook
     useEffect(() => {
-        const savedData = localStorage.getItem('home_hero_data')
-        if (savedData) {
-            const parsed = JSON.parse(savedData)
+        if (sectionData) {
             reset({
-                isVisible: parsed.isVisible !== undefined ? parsed.isVisible : true,
-                title: parsed.title || '',
-                subtitle: parsed.subtitle || '',
-                btnText: parsed.btnText || '',
-                image: null
-            })
+                isVisible: sectionData.isVisible !== undefined ? sectionData.isVisible : true,
+                title: sectionData.title || '',
+                subtitle: sectionData.subtitle || '',
+                btnText: sectionData.btnText || '',
+                image: sectionData.image || null
+            });
         }
-    }, [reset])
+    }, [sectionData, reset]);
 
     const { getRootProps, getInputProps } = useDropzone({
         maxFiles: 1,
@@ -86,7 +97,6 @@ const HomeHeroSection = () => {
             const file = acceptedFiles[0]
             if (file) {
                 setFiles([Object.assign(file)])
-                setValue('image', file as any)
             }
         }
     })
@@ -104,17 +114,33 @@ const HomeHeroSection = () => {
         setValue('image', null)
     }
 
-    const onSubmit = (data: any) => {
-        const dataToSave = {
-            isVisible: data.isVisible,
-            title: data.title,
-            subtitle: data.subtitle,
-            btnText: data.btnText
-        }
-        localStorage.setItem('home_hero_data', JSON.stringify(dataToSave))
+    const onSubmit = async (data: any) => {
+        setSaveStatus('saving');
+        try {
+            let imageUrl = data.image;
 
-        console.log('Home Hero Saved:', data)
-        alert('Home Hero Saved')
+            // Upload image if selected
+            if (files.length > 0) {
+                imageUrl = await uploadImage(files[0]);
+            }
+
+            const dataToSave = {
+                isVisible: data.isVisible,
+                title: data.title,
+                subtitle: data.subtitle,
+                btnText: data.btnText,
+                image: imageUrl
+            }
+
+            await saveSection(dataToSave);
+            setSaveStatus('success');
+
+            // Clear success message after 3 seconds
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+            console.error(error);
+            setSaveStatus('error');
+        }
     }
 
     return (
@@ -122,8 +148,12 @@ const HomeHeroSection = () => {
             <form onSubmit={handleSubmit(onSubmit)}>
                 <CardHeader
                     title='Hero Section'
+                    subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
                     action={
                         <div className="flex items-center gap-4">
+                            {saveStatus === 'success' && <Typography color="success.main" variant="body2">Saved!</Typography>}
+                            {saveStatus === 'error' && <Typography color="error.main" variant="body2">Error!</Typography>}
+
                             <Controller
                                 name='isVisible'
                                 control={control}
@@ -134,14 +164,17 @@ const HomeHeroSection = () => {
                                     />
                                 )}
                             />
-                            <Button variant='contained' type='submit'>
-                                Save
+                            <Button variant='contained' type='submit' disabled={saveStatus === 'saving'}>
+                                {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                             </Button>
                         </div>
                     }
                 />
                 <Divider />
                 <CardContent>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+
                     <div className='flex flex-col gap-6'>
                         <Controller
                             name='title'
@@ -182,6 +215,14 @@ const HomeHeroSection = () => {
 
                         <div>
                             <Typography variant='caption' className='mb-2 block'>Hero Image</Typography>
+
+                            {/* Display existing image if available and no new file selected */}
+                            {!files.length && watch('image') && (
+                                <div className="mb-4">
+                                    <img src={watch('image') as string} alt="Current Hero" style={{ maxHeight: 200, borderRadius: 8 }} />
+                                </div>
+                            )}
+
                             <Dropzone>
                                 <div {...getRootProps({ className: 'dropzone' })}>
                                     <input {...getInputProps()} />

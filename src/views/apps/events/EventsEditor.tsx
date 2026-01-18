@@ -26,6 +26,7 @@ import Radio from '@mui/material/Radio'
 import RadioGroup from '@mui/material/RadioGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import FormLabel from '@mui/material/FormLabel'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
@@ -42,6 +43,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 // Local Imports
 import EditorToolbar from './EditorToolbar'
 import '@/libs/styles/tiptapEditor.css'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type FormValues = {
     category: string
@@ -61,12 +63,20 @@ type Category = {
     title: string
 }
 
-type EventPost = {
+export type EventPost = {
     id: string
     heading: string
     status: string
     eventDate: string | null
-    /* ... other fields ... */
+    category: string
+    shortDescription: string
+    longDetail: string
+    location: string
+    mainImage: string
+    gallery: string[]
+    scheduledDate: string | null
+    updatedAt: string
+    publishedAt?: string
 }
 
 type Props = {
@@ -74,6 +84,7 @@ type Props = {
     handleClose?: () => void
     dataToEdit?: EventPost
     onSuccess?: () => void
+    onSave?: (data: EventPost) => Promise<void> | void
 }
 
 const TiptapEditor = ({ value, onChange, placeholder }: { value: string; onChange: (content: string) => void; placeholder?: string }) => {
@@ -95,6 +106,14 @@ const TiptapEditor = ({ value, onChange, placeholder }: { value: string; onChang
         immediatelyRender: false
     })
 
+    // Update content if value changes externally (e.g. initial load)
+    useEffect(() => {
+        if (editor && value !== editor.getHTML()) {
+            editor.commands.setContent(value);
+        }
+    }, [value, editor]);
+
+
     return (
         <Card className='p-0 border shadow-none'>
             <CardContent className='p-0'>
@@ -106,10 +125,38 @@ const TiptapEditor = ({ value, onChange, placeholder }: { value: string; onChang
     )
 }
 
-const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => {
-    const [categories, setCategories] = useState<Category[]>([])
+const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess, onSave }: Props) => {
     const router = useRouter()
     const searchParams = useSearchParams()
+
+    // Hook for Categories (Read Only here)
+    const { data: categoriesData } = usePageSection({
+        pageKey: 'events',
+        sectionKey: 'categories'
+    });
+
+    // Hook for Uploads
+    const { uploadImage } = usePageSection({
+        pageKey: 'events',
+        sectionKey: 'temp'
+    });
+
+    const [categories, setCategories] = useState<Category[]>([])
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File }>({});
+    const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+
+    useEffect(() => {
+        if (categoriesData) {
+            if (Array.isArray(categoriesData)) {
+                setCategories(categoriesData);
+            } else if (categoriesData.categories && Array.isArray(categoriesData.categories)) {
+                setCategories(categoriesData.categories);
+            } else {
+                setCategories([]);
+            }
+        }
+    }, [categoriesData])
 
     // Use dataToEdit id if in drawer, else URL param
     const editId = isDrawer ? dataToEdit?.id : searchParams?.get('id')
@@ -118,7 +165,6 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
         control,
         handleSubmit,
         reset,
-        setValue,
         watch,
         formState: { errors }
     } = useForm<FormValues>({
@@ -131,7 +177,6 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
             eventDate: new Date(),
             mainImage: '',
             gallery: [],
-            gallery: [],
             status: 'draft',
             scheduledDate: new Date()
         }
@@ -140,78 +185,103 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
     const statusValue = watch('status')
 
     useEffect(() => {
-        // Load Categories
-        const savedCategories = localStorage.getItem('events-categories')
-        if (savedCategories) {
-            setCategories(JSON.parse(savedCategories))
-        } else {
-            // Default categories if none exist
-            const defaultCategories = [{ id: '1', title: 'Music' }, { id: '2', title: 'Tech' }, { id: '3', title: 'Workshop' }]
-            setCategories(defaultCategories)
-            localStorage.setItem('events-categories', JSON.stringify(defaultCategories))
+        if (editId && dataToEdit) {
+            reset({
+                category: dataToEdit.category || '',
+                heading: dataToEdit.heading || '',
+                shortDescription: dataToEdit.shortDescription || '',
+                longDetail: dataToEdit.longDetail || '',
+                location: dataToEdit.location || '',
+                eventDate: dataToEdit.eventDate ? new Date(dataToEdit.eventDate) : new Date(),
+                mainImage: dataToEdit.mainImage || '',
+                gallery: dataToEdit.gallery || [],
+                status: (dataToEdit.status as any) || 'draft',
+                scheduledDate: dataToEdit.scheduledDate ? new Date(dataToEdit.scheduledDate) : new Date()
+            })
         }
+    }, [editId, reset, dataToEdit])
 
-        const savedEvents = JSON.parse(localStorage.getItem('events-posts') || '[]')
+    const handleFileSelect = (key: string, file: File, field: any) => {
+        setSelectedFiles(prev => ({ ...prev, [key]: file }));
+        field.onChange(file.name);
+    }
 
-        if (editId && (dataToEdit || !isDrawer)) {
-            const postToEdit = dataToEdit || savedEvents.find((post: any) => post.id === editId)
+    const handleGallerySelect = (files: FileList | null, field: any) => {
+        if (files) {
+            const newFiles = Array.from(files);
+            setGalleryFiles(prev => [...prev, ...newFiles]);
+            field.onChange([...field.value, ...newFiles.map(f => f.name)]);
+        }
+    }
 
-            if (postToEdit) {
-                reset({
-                    category: postToEdit.category || '',
-                    heading: postToEdit.heading || '',
-                    shortDescription: postToEdit.shortDescription || '',
-                    longDetail: postToEdit.longDetail || '',
-                    location: postToEdit.location || '',
-                    eventDate: postToEdit.eventDate ? new Date(postToEdit.eventDate) : new Date(),
-                    mainImage: postToEdit.mainImage || '',
-                    gallery: postToEdit.gallery || [],
-                    gallery: postToEdit.gallery || [],
-                    status: postToEdit.status || 'draft',
-                    scheduledDate: postToEdit.scheduledDate ? new Date(postToEdit.scheduledDate) : new Date()
-                })
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // Upload Main Image
+            let mainImageUrl = data.mainImage;
+            if (selectedFiles['mainImage']) {
+                mainImageUrl = await uploadImage(selectedFiles['mainImage']);
             }
-        }
-    }, [editId, reset, dataToEdit, isDrawer])
 
-    const onSubmit = (data: FormValues) => {
-        const savedEvents = JSON.parse(localStorage.getItem('events-posts') || '[]')
-        const timestamp = new Date().toISOString()
+            // Upload Gallery Images
+            let galleryUrls = [...data.gallery];
+            // Identify which strings in data.gallery are actually file names waiting to be uploaded
+            // For simplicity, we can just upload all invalid URLs again? No, that's inefficient.
+            // Better: Iterate through galleryFiles and upload them, then replace their names in galleryUrls with the returned URL.
+            // Assumption: The order of addition corresponds? Hard to guarantee.
+            // Simplest robust strategy:
+            // 1. Upload all new files.
+            // 2. We need to know which file corresponds to which name in data.gallery.
+            //    Since we just appended names, we know new files match the names they provided.
 
-        const finalData = {
-            ...data,
-            ...data,
-            eventDate: data.eventDate ? data.eventDate.toISOString() : null,
-            scheduledDate: data.scheduledDate ? data.scheduledDate.toISOString() : null
-        }
+            // Let's iterate over galleryFiles, upload them, and replace the *exact name match* in galleryUrls.
+            // Note: If multiple files have same name, this could be ambiguous. Assumes unique names or handles first match.
 
-        let newEventsList
-        if (editId) {
-            newEventsList = savedEvents.map((post: any) =>
-                post.id === editId ? { ...post, ...finalData, updatedAt: timestamp } : post
-            )
-        } else {
-            const newPost = {
-                id: Date.now().toString(),
-                ...finalData,
-                publishedAt: timestamp,
-                updatedAt: timestamp
+            for (const file of galleryFiles) {
+                const uploadedUrl = await uploadImage(file);
+                // Replace the filename with the URL in the gallery array
+                // We find the index of the filename.
+                const index = galleryUrls.indexOf(file.name);
+                if (index !== -1) {
+                    galleryUrls[index] = uploadedUrl;
+                }
             }
-            newEventsList = [...savedEvents, newPost]
-        }
 
-        localStorage.setItem('events-posts', JSON.stringify(newEventsList))
+            const timestamp = new Date().toISOString()
+            const finalData: EventPost = {
+                id: dataToEdit?.id || Date.now().toString(),
+                updatedAt: timestamp,
+                ...data,
+                eventDate: data.eventDate ? data.eventDate.toISOString() : null,
+                scheduledDate: data.scheduledDate ? data.scheduledDate.toISOString() : null,
+                mainImage: mainImageUrl,
+                gallery: galleryUrls,
+                publishedAt: (!editId && data.status === 'published') ? timestamp : (dataToEdit?.publishedAt || undefined)
+            };
 
-        if (isDrawer) {
-            if (onSuccess) onSuccess()
-            if (handleClose) handleClose()
-        } else {
-            alert(editId ? 'Event Updated!' : 'Event Published!')
-            if (!editId) {
-                reset()
+            if (onSave) {
+                await onSave(finalData);
+            }
+
+            if (isDrawer) {
+                if (onSuccess) onSuccess()
+                if (handleClose) handleClose()
             } else {
-                router.push('/apps/events/list')
+                alert(editId ? 'Event Updated!' : 'Event Published!')
+                if (!editId) {
+                    reset()
+                    setSelectedFiles({});
+                    setGalleryFiles([]);
+                } else {
+                    router.push('/apps/events/list')
+                }
             }
+
+        } catch (error) {
+            console.error("Error saving event:", error);
+            alert("Failed to save event.");
+        } finally {
+            setIsSaving(false);
         }
     }
 
@@ -326,7 +396,12 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        const newFiles = { ...selectedFiles };
+                                                                        delete newFiles['mainImage'];
+                                                                        setSelectedFiles(newFiles);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -344,11 +419,19 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                handleFileSelect('mainImage', files[0], field);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFiles['mainImage']) && (
+                                                    <img
+                                                        src={selectedFiles['mainImage'] ? URL.createObjectURL(selectedFiles['mainImage']) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -372,18 +455,15 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
                                                         multiple
                                                         onChange={(event) => {
                                                             const { files } = event.target
-                                                            if (files && files.length !== 0) {
-                                                                const fileNames = Array.from(files).map(f => f.name)
-                                                                field.onChange([...field.value, ...fileNames])
-                                                            }
+                                                            handleGallerySelect(files, field);
                                                         }}
                                                     />
                                                 </Button>
                                                 <div className='flex flex-wrap gap-2'>
-                                                    {field.value.map((img, index) => (
+                                                    {field.value && field.value.map((img, index) => (
                                                         <Chip
                                                             key={index}
-                                                            label={img}
+                                                            label={img.length > 20 ? img.substring(0, 20) + '...' : img}
                                                             onDelete={() => {
                                                                 const newGallery = field.value.filter((_, i) => i !== index)
                                                                 field.onChange(newGallery)
@@ -477,14 +557,14 @@ const EventsEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) =
                     </Card>
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4'>
+                <Grid size={{ xs: 12 }} className='flex justify-end pbe-10 gap-4 items-center'>
                     {isDrawer && handleClose && (
                         <Button variant='outlined' color='secondary' onClick={handleClose}>
                             Cancel
                         </Button>
                     )}
-                    <Button variant='contained' size='large' type='submit'>
-                        {editId ? 'Update Event' : 'Publish Event'}
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (editId ? 'Update Event' : 'Publish Event')}
                     </Button>
                 </Grid>
             </Grid>

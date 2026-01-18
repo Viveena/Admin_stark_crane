@@ -1,6 +1,5 @@
 'use client'
 
-
 // Next Imports
 import Link from 'next/link'
 
@@ -18,12 +17,15 @@ import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import InputAdornment from '@mui/material/InputAdornment'
 import Divider from '@mui/material/Divider'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 
 // Local Imports
 import ServiceRelated, { RelatedContentData } from './ServiceRelated'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type DetailSection = {
     title: string
@@ -41,6 +43,15 @@ type FormData = {
 }
 
 const ServiceLandingSettings = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'service',
+        sectionKey: 'landing'
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
     // Hooks
     const {
         control,
@@ -75,15 +86,45 @@ const ServiceLandingSettings = () => {
     const relatedContentValue = watch('relatedContent')
 
     useEffect(() => {
-        const savedData = localStorage.getItem('service-landing-settings')
-        if (savedData) {
-            reset(JSON.parse(savedData))
+        if (sectionData) {
+            reset({
+                heroTitle: sectionData.heroTitle || '',
+                heroImage: sectionData.heroImage || '',
+                shortDescription: sectionData.shortDescription || '',
+                heroCtaText: sectionData.heroCtaText || '',
+                heroCtaLink: sectionData.heroCtaLink || '',
+                detailSections: sectionData.detailSections || [{ title: '', description: '' }],
+                relatedContent: sectionData.relatedContent || {
+                    sectionTypes: [],
+                    relatedBlogs: [],
+                    relatedServices: [],
+                    relatedParts: [],
+                    relatedProjects: []
+                }
+            })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: FormData) => {
-        localStorage.setItem('service-landing-settings', JSON.stringify(data))
-        alert('Service Landing Settings Saved!')
+    const onSubmit = async (data: FormData) => {
+        setSaveStatus('saving');
+        try {
+            let imageUrl = data.heroImage;
+            if (selectedFile) {
+                imageUrl = await uploadImage(selectedFile);
+            }
+
+            const dataToSave = {
+                ...data,
+                heroImage: imageUrl
+            };
+
+            await saveSection(dataToSave);
+            setSaveStatus('success');
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (err) {
+            console.error(err);
+            setSaveStatus('error');
+        }
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
@@ -93,13 +134,17 @@ const ServiceLandingSettings = () => {
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
             <Grid container spacing={6}>
+                <Grid size={{ xs: 12 }}>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+                </Grid>
+
                 {/* Hero Section */}
                 <Grid size={{ xs: 12 }}>
                     <Card>
-
-
                         <CardHeader
                             title='Hero Section'
+                            subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
                             action={
                                 <Link href='/apps/services/category/list' className='no-underline'>
                                     <Button variant='outlined' startIcon={<i className='ri-list-settings-line' />}>
@@ -143,7 +188,10 @@ const ServiceLandingSettings = () => {
                                                         input: {
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('')
+                                                                        setSelectedFile(null)
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -161,11 +209,20 @@ const ServiceLandingSettings = () => {
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
+                                                                setSelectedFile(files[0])
                                                                 field.onChange(files[0].name)
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {/* Preview */}
+                                                {(field.value || selectedFile) && (
+                                                    <img
+                                                        src={selectedFile ? URL.createObjectURL(selectedFile) : field.value}
+                                                        alt="Hero Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
@@ -295,9 +352,11 @@ const ServiceLandingSettings = () => {
                     />
                 </Grid>
 
-                <Grid size={{ xs: 12 }} className='flex justify-end'>
-                    <Button variant='contained' type='submit' size='large'>
-                        Save Changes
+                <Grid size={{ xs: 12 }} className='flex justify-end items-center gap-4'>
+                    {saveStatus === 'success' && <Typography color="success.main">Saved!</Typography>}
+                    {saveStatus === 'error' && <Typography color="error.main">Error saving!</Typography>}
+                    <Button variant='contained' type='submit' size='large' disabled={saveStatus === 'saving'}>
+                        {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save Changes'}
                     </Button>
                 </Grid>
             </Grid>

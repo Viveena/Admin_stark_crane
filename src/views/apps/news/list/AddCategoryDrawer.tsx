@@ -16,8 +16,11 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Paper from '@mui/material/Paper'
 import Tooltip from '@mui/material/Tooltip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 import { useForm, Controller } from 'react-hook-form'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type Category = {
     id: string
@@ -30,6 +33,12 @@ type Props = {
 }
 
 const AddCategoryDrawer = ({ open, handleClose }: Props) => {
+    // Hook for Categories
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'news',
+        sectionKey: 'categories'
+    });
+
     const [categories, setCategories] = useState<Category[]>([])
     const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -39,33 +48,41 @@ const AddCategoryDrawer = ({ open, handleClose }: Props) => {
         }
     })
 
+    // Sync data from hook
     useEffect(() => {
-        if (open) {
-            const savedCategories = localStorage.getItem('news-categories')
-            if (savedCategories) {
-                setCategories(JSON.parse(savedCategories))
+        if (sectionData) {
+            if (Array.isArray(sectionData)) {
+                setCategories(sectionData);
+            } else if (sectionData.categories && Array.isArray(sectionData.categories)) {
+                setCategories(sectionData.categories);
+            } else {
+                setCategories([]);
             }
         }
-    }, [open])
+    }, [sectionData])
 
-    const saveCategories = (newCategories: Category[]) => {
-        setCategories(newCategories)
-        localStorage.setItem('news-categories', JSON.stringify(newCategories))
+    const saveCategories = async (newCategories: Category[]) => {
+        setCategories(newCategories) // Optimistic
+        try {
+            await saveSection(newCategories)
+        } catch (e) {
+            console.error("Failed to save news categories", e);
+        }
     }
 
-    const onSubmit = (data: { title: string }) => {
+    const onSubmit = async (data: { title: string }) => {
         if (editingId) {
             const updatedCategories = categories.map(cat =>
                 cat.id === editingId ? { ...cat, title: data.title } : cat
             )
-            saveCategories(updatedCategories)
+            await saveCategories(updatedCategories)
             setEditingId(null)
         } else {
             const newCategory = {
                 id: Date.now().toString(),
                 title: data.title
             }
-            saveCategories([...categories, newCategory])
+            await saveCategories([...categories, newCategory])
         }
         reset()
     }
@@ -75,10 +92,10 @@ const AddCategoryDrawer = ({ open, handleClose }: Props) => {
         setValue('title', category.title)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this category?')) {
             const updatedCategories = categories.filter(cat => cat.id !== id)
-            saveCategories(updatedCategories)
+            await saveCategories(updatedCategories)
         }
     }
 
@@ -103,6 +120,9 @@ const AddCategoryDrawer = ({ open, handleClose }: Props) => {
                 </IconButton>
             </div>
             <Divider />
+
+            {error && <Alert severity='error' className='m-4'>{error}</Alert>}
+
             <div className='p-5 flex flex-col gap-6'>
                 {/* Form to Add/Edit */}
                 <form onSubmit={handleSubmit(onSubmit)} className='flex flex-col gap-4'>
@@ -122,7 +142,7 @@ const AddCategoryDrawer = ({ open, handleClose }: Props) => {
                         )}
                     />
                     <div className='flex gap-2'>
-                        <Button variant='contained' type='submit' fullWidth>
+                        <Button variant='contained' type='submit' fullWidth disabled={loading}>
                             {editingId ? 'Update' : 'Add'}
                         </Button>
                         {editingId && (
@@ -136,7 +156,11 @@ const AddCategoryDrawer = ({ open, handleClose }: Props) => {
                 <Divider />
 
                 {/* Categories Table */}
-                <Typography variant='h6'>Existing Categories</Typography>
+                <div className='flex justify-between items-center'>
+                    <Typography variant='h6'>Existing Categories</Typography>
+                    {loading && <CircularProgress size={20} />}
+                </div>
+
                 <TableContainer component={Paper} className='shadow-none border'>
                     <Table size='small'>
                         <TableHead>

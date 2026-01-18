@@ -16,6 +16,8 @@ import type { BoxProps } from '@mui/material/Box'
 import IconButton from '@mui/material/IconButton'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useDropzone } from 'react-dropzone'
@@ -24,6 +26,9 @@ import { Controller, useForm } from 'react-hook-form'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import AppReactDropzone from '@/libs/styles/AppReactDropzone'
+
+// Hook Import
+import { usePageSection } from '@/hooks/usePageSection'
 
 type FileProp = {
     name: string
@@ -46,33 +51,37 @@ const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
 }))
 
 const AboutHero = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
+        pageKey: 'about',
+        sectionKey: 'hero'
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
     // Local Form
-    const { control, handleSubmit, setValue, reset } = useForm({
+    const { control, handleSubmit, setValue, reset, watch } = useForm({
         defaultValues: {
             heroTitle: '',
             heroSubtitle: '',
             heroBtnText: '',
-            heroImage: null
+            heroImage: null as string | null
         }
     })
 
     const [files, setFiles] = useState<File[]>([])
 
-    // Load data from LocalStorage on mount
+    // Load data
     useEffect(() => {
-        const savedData = localStorage.getItem('about_hero_data')
-        if (savedData) {
-            const parsed = JSON.parse(savedData)
-            // Reset form with saved string data
-            // Note: We cannot restore the File object for the image from localStorage
+        if (sectionData) {
             reset({
-                heroTitle: parsed.heroTitle || '',
-                heroSubtitle: parsed.heroSubtitle || '',
-                heroBtnText: parsed.heroBtnText || '',
-                heroImage: null
+                heroTitle: sectionData.heroTitle || '',
+                heroSubtitle: sectionData.heroSubtitle || '',
+                heroBtnText: sectionData.heroBtnText || '',
+                heroImage: sectionData.heroImage || null
             })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
     const { getRootProps, getInputProps } = useDropzone({
         maxFiles: 1,
@@ -83,7 +92,6 @@ const AboutHero = () => {
             const file = acceptedFiles[0]
             if (file) {
                 setFiles([Object.assign(file)])
-                setValue('heroImage', file)
             }
         }
     })
@@ -101,17 +109,32 @@ const AboutHero = () => {
         setValue('heroImage', null)
     }
 
-    const onSubmit = (data: any) => {
-        // Save text data to LocalStorage
-        const dataToSave = {
-            heroTitle: data.heroTitle,
-            heroSubtitle: data.heroSubtitle,
-            heroBtnText: data.heroBtnText
-        }
-        localStorage.setItem('about_hero_data', JSON.stringify(dataToSave))
+    const onSubmit = async (data: any) => {
+        setSaveStatus('saving');
+        try {
+            let imageUrl = data.heroImage;
 
-        console.log('Hero Section Saved:', data)
-        alert('Hero Section Save: Data saved to LocalStorage')
+            // Upload image if selected
+            if (files.length > 0) {
+                imageUrl = await uploadImage(files[0]);
+            }
+
+            const dataToSave = {
+                heroTitle: data.heroTitle,
+                heroSubtitle: data.heroSubtitle,
+                heroBtnText: data.heroBtnText,
+                heroImage: imageUrl
+            }
+
+            await saveSection(dataToSave);
+            setSaveStatus('success');
+
+            // Clear success message after 3 seconds
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+            console.error(error);
+            setSaveStatus('error');
+        }
     }
 
     return (
@@ -119,14 +142,22 @@ const AboutHero = () => {
             <form onSubmit={handleSubmit(onSubmit)}>
                 <CardHeader
                     title='Hero Section'
+                    subheader={meta?.updated_by_name ? `Last updated by ${meta.updated_by_name} on ${new Date(meta.updated_at).toLocaleString()}` : ''}
                     action={
-                        <Button variant='contained' type='submit'>
-                            Save Hero
-                        </Button>
+                        <div className="flex items-center gap-4">
+                            {saveStatus === 'success' && <Typography color="success.main" variant="body2">Saved!</Typography>}
+                            {saveStatus === 'error' && <Typography color="error.main" variant="body2">Error!</Typography>}
+                            <Button variant='contained' type='submit' disabled={saveStatus === 'saving'}>
+                                {saveStatus === 'saving' ? <CircularProgress size={24} color="inherit" /> : 'Save Hero'}
+                            </Button>
+                        </div>
                     }
                 />
                 <Divider />
                 <CardContent>
+                    {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                    {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+
                     <div className='flex flex-col gap-6'>
                         <Controller
                             name='heroTitle'
@@ -167,6 +198,14 @@ const AboutHero = () => {
 
                         <div>
                             <Typography variant='caption' className='mb-2 block'>Hero Image</Typography>
+
+                            {/* Display existing image if available and no new file selected */}
+                            {!files.length && watch('heroImage') && (
+                                <div className="mb-4">
+                                    <img src={watch('heroImage') as string} alt="Current Hero" style={{ maxHeight: 200, borderRadius: 8 }} />
+                                </div>
+                            )}
+
                             <Dropzone>
                                 <div {...getRootProps({ className: 'dropzone' })}>
                                     <input {...getInputProps()} />

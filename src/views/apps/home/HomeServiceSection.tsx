@@ -21,6 +21,9 @@ import Paper from '@mui/material/Paper'
 import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import TextField from '@mui/material/TextField'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
@@ -28,16 +31,25 @@ import { useForm, Controller } from 'react-hook-form'
 // Component Imports
 import HomeServiceDrawer from './HomeServiceDrawer'
 
+// Hook Import
+import { usePageSection } from '@/hooks/usePageSection'
+
 type ServiceItem = {
     icon: string
     title: string
     text: string
-    image?: any
+    image?: string | null // Changed to string for URL
 }
 
 const HomeServiceSection = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'home',
+        sectionKey: 'services'
+    });
+
     // Main Form
-    const { control, handleSubmit, reset } = useForm({
+    const { control, handleSubmit, reset, watch } = useForm({
         defaultValues: {
             isVisible: true,
             title: '',
@@ -48,34 +60,39 @@ const HomeServiceSection = () => {
     const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const [isSaving, setIsSaving] = useState(false)
 
     // Load data
     useEffect(() => {
-        const savedData = localStorage.getItem('home_service_data')
-        if (savedData) {
-            const parsed = JSON.parse(savedData)
+        if (sectionData) {
             reset({
-                isVisible: parsed.isVisible !== undefined ? parsed.isVisible : true,
-                title: parsed.title || '',
-                text: parsed.text || ''
+                isVisible: sectionData.isVisible !== undefined ? sectionData.isVisible : true,
+                title: sectionData.title || '',
+                text: sectionData.text || ''
             })
-            setServiceItems(parsed.serviceItems || [])
+            setServiceItems(sectionData.serviceItems || [])
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const saveAllData = (items: ServiceItem[], formData: any) => {
-        const dataToSave = {
-            isVisible: formData.isVisible,
-            title: formData.title,
-            text: formData.text,
-            serviceItems: items
+    const saveAllData = async (items: ServiceItem[], formData: any) => {
+        setIsSaving(true)
+        try {
+            const dataToSave = {
+                isVisible: formData.isVisible,
+                title: formData.title,
+                text: formData.text,
+                serviceItems: items
+            }
+            await saveSection(dataToSave)
+        } catch (e) {
+            console.error("Failed to save service section", e)
+        } finally {
+            setIsSaving(false)
         }
-        localStorage.setItem('home_service_data', JSON.stringify(dataToSave))
     }
 
     const onMainSubmit = (data: any) => {
         saveAllData(serviceItems, data)
-        alert('Service Section Saved')
     }
 
     const handleAdd = () => {
@@ -89,20 +106,31 @@ const HomeServiceSection = () => {
     }
 
     const handleDelete = (index: number) => {
-        const newItems = serviceItems.filter((_, i) => i !== index)
-        setServiceItems(newItems)
-        // Trigger a save using current form values (might be slightly stale if user typed without saving, 
-        // but typically user should save main form. For now we save items separately in a way)
-        // To be safe, we just update local state and let user click "Save" on top, 
-        // OR we can force save everything. Let's force save with current form values.
-        handleSubmit((data) => saveAllData(newItems, data))()
+        if (confirm("Are you sure you want to delete this service?")) {
+            const newItems = serviceItems.filter((_, i) => i !== index)
+            setServiceItems(newItems)
+            handleSubmit((data) => saveAllData(newItems, data))()
+        }
     }
 
-    const handleDrawerSave = (data: any) => {
+    const handleDrawerSave = async (data: any) => {
+        // Upload image if present
+        let imageUrl = editingIndex !== null ? serviceItems[editingIndex].image : null;
+
+        if (data.image instanceof File) {
+            try {
+                imageUrl = await uploadImage(data.image);
+            } catch (e) {
+                console.error("Failed to upload image", e);
+                alert("Failed to upload image, saving without it.");
+            }
+        }
+
         const newItem: ServiceItem = {
             icon: data.icon,
             title: data.title,
-            text: data.text
+            text: data.text,
+            image: imageUrl
         }
 
         let newItems = [...serviceItems]
@@ -125,6 +153,7 @@ const HomeServiceSection = () => {
                         title='Service Section'
                         action={
                             <div className="flex items-center gap-4">
+                                {isSaving && <CircularProgress size={20} />}
                                 <Controller
                                     name='isVisible'
                                     control={control}
@@ -135,7 +164,7 @@ const HomeServiceSection = () => {
                                         />
                                     )}
                                 />
-                                <Button variant='contained' type='submit'>
+                                <Button variant='contained' type='submit' disabled={isSaving}>
                                     Save
                                 </Button>
                             </div>
@@ -143,6 +172,8 @@ const HomeServiceSection = () => {
                     />
                     <Divider />
                     <CardContent>
+                        {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+
                         <div className="flex flex-col gap-4 mb-6">
                             <Controller
                                 name='title'
@@ -188,6 +219,7 @@ const HomeServiceSection = () => {
                                 <Table>
                                     <TableHead>
                                         <TableRow>
+                                            <TableCell>Image</TableCell>
                                             <TableCell>Icon</TableCell>
                                             <TableCell>Title</TableCell>
                                             <TableCell>Text</TableCell>
@@ -197,6 +229,13 @@ const HomeServiceSection = () => {
                                     <TableBody>
                                         {serviceItems.map((item, index) => (
                                             <TableRow key={index}>
+                                                <TableCell>
+                                                    {item.image ? (
+                                                        <Avatar src={item.image} variant="rounded" />
+                                                    ) : (
+                                                        <Avatar variant="rounded">-</Avatar>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell>
                                                     <i className={item.icon || 'ri-circle-fill'} />
                                                 </TableCell>

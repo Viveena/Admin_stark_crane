@@ -26,6 +26,7 @@ const dynamicCheckPermission = (action) => {
       }
 
       const userRole = req.user.role;
+      console.log(`[Permission Check] User: ${req.user.id}, Role: ${userRole}, Page: ${pageKey}, Action: ${action}`);
 
       // SUPER_ADMIN and ADMIN get full access automatically
       if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
@@ -37,8 +38,8 @@ const dynamicCheckPermission = (action) => {
         return res.status(500).json({ msg: 'Invalid action. Must be "view" or "edit"' });
       }
 
-      // For USER role, strictly enforce permissions from database
-      if (userRole === 'USER') {
+      // For any non-admin role, strictly enforce permissions from database
+      if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
         // Get role_id from role name
         const [roles] = await db.query('SELECT id FROM roles WHERE name = ?', [userRole]);
 
@@ -82,9 +83,6 @@ const dynamicCheckPermission = (action) => {
         // Permission granted
         return next();
       }
-
-      // For any other role (including 'guest'), deny access
-      return res.status(403).json({ msg: 'Access denied. Insufficient permissions.' });
 
     } catch (error) {
       console.error('Error checking permissions:', error);
