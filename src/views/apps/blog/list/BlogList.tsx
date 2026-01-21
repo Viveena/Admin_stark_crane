@@ -23,6 +23,11 @@ import Paper from '@mui/material/Paper'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
+
+import { usePermission } from '@/hooks/usePermission'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type BlogPost = {
     id: string
@@ -36,6 +41,12 @@ type BlogPost = {
 import EditBlogDrawer from './EditBlogDrawer'
 
 const BlogList = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'items'
+    });
+
     const [posts, setPosts] = useState<BlogPost[]>([])
     const [searchTerm, setSearchTerm] = useState('')
     const [page, setPage] = useState(0)
@@ -48,22 +59,23 @@ const BlogList = () => {
     const { canCreate } = usePermission('blogs')
     const router = useRouter()
 
-    const fetchPosts = () => {
-        const savedPosts = localStorage.getItem('blog-posts')
-        if (savedPosts) {
-            setPosts(JSON.parse(savedPosts))
-        }
-    }
-
     useEffect(() => {
-        fetchPosts()
-    }, [])
+        if (sectionData && sectionData.items) {
+            setPosts(sectionData.items);
+        }
+    }, [sectionData])
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this post?')) {
             const updatedPosts = posts.filter(post => post.id !== id)
-            setPosts(updatedPosts)
-            localStorage.setItem('blog-posts', JSON.stringify(updatedPosts))
+            setPosts(updatedPosts) // Optimistic update
+            try {
+                await saveSection({ items: updatedPosts });
+            } catch (err) {
+                console.error("Failed to delete post", err);
+                alert("Failed to delete post.");
+                // Revert or reload could be done here, but simpler to just alert for now
+            }
         }
     }
 
@@ -75,6 +87,17 @@ const BlogList = () => {
     const handleCloseDrawer = () => {
         setEditDrawerOpen(false)
         setSelectedBlog(null)
+    }
+
+    // Refresh posts (managed by hook mostly, but if needed callback)
+    const handlePostUpdate = () => {
+        // Since usePageSection re-fetches or uses SWR/Query based logic usually, 
+        // passing a callback might just trigger a re-fetch if exposed. 
+        // For now, if EditBlogDrawer uses the same hook or updates DB, we might need a refresh.
+        // If EditBlogDrawer is refactored to use the hook, it will update DB. 
+        // This component might not auto-update unless SWR is used. 
+        // We'll rely on global state or window reload if hook doesn't sync.
+        window.location.reload();
     }
 
     const handleChangePage = (event: unknown, newPage: number) => {
@@ -128,6 +151,9 @@ const BlogList = () => {
                     </div>
                 }
             />
+            {loading && <div className="p-4"><CircularProgress size={20} /> Loading blogs...</div>}
+            {error && <Alert severity="error" className="m-4">{error}</Alert>}
+
             <TableContainer component={Paper} className='shadow-none border rounded'>
                 <Table aria-label='blog posts table'>
                     <TableHead>
@@ -187,7 +213,7 @@ const BlogList = () => {
                 open={editDrawerOpen}
                 handleClose={handleCloseDrawer}
                 blogData={selectedBlog}
-                onUpdate={fetchPosts}
+                onUpdate={handlePostUpdate}
             />
         </Card>
     )

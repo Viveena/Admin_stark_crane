@@ -14,6 +14,8 @@ import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import { styled } from '@mui/material/styles'
 import type { BoxProps } from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
@@ -22,6 +24,7 @@ import { useDropzone } from 'react-dropzone'
 // Component Imports
 import ServiceRelated, { RelatedContentData } from '../ServiceRelated'
 import AppReactDropzone from '@/libs/styles/AppReactDropzone'
+import { usePageSection } from '@/hooks/usePageSection'
 
 
 // Styled Dropzone
@@ -67,6 +70,12 @@ type Props = {
 }
 
 const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }: Props) => {
+    // Hooks Integration
+    const { data: categoriesData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'services',
+        sectionKey: 'categories'
+    });
+
     const {
         control,
         handleSubmit,
@@ -98,6 +107,8 @@ const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }:
     const imageValue = watch('image')
 
     const [files, setFiles] = useState<File[]>([])
+    const [isSaving, setIsSaving] = useState(false)
+    const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
     const { getRootProps, getInputProps } = useDropzone({
         maxFiles: 1,
@@ -112,6 +123,7 @@ const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }:
                 reader.onload = (e) => {
                     if (e.target?.result) {
                         setValue('image', e.target.result as string)
+                        setSelectedFile(file)
                     }
                 }
                 reader.readAsDataURL(file)
@@ -138,34 +150,49 @@ const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }:
                     relatedProjects: []
                 }
             })
+            setSelectedFile(null)
         }
     }, [dataToEdit, reset])
 
-    const onSubmit = (data: FormValues) => {
-        const savedCategories = JSON.parse(localStorage.getItem('service-categories') || '[]')
-        const timestamp = new Date().toISOString()
-
-        let newCategoryList
-
-        if (dataToEdit) {
-            // Editing existing
-            newCategoryList = savedCategories.map((cat: ServiceCategoryType) =>
-                cat.id === dataToEdit.id ? { ...cat, ...data, updatedAt: timestamp } : cat
-            )
-        } else {
-            // New Category
-            const newItem = {
-                id: Date.now().toString(),
-                ...data,
-                updatedAt: timestamp
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            let imageUrl = data.image;
+            if (selectedFile) {
+                imageUrl = await uploadImage(selectedFile);
             }
-            newCategoryList = [...savedCategories, newItem]
+
+            const savedCategories = categoriesData?.categories || [];
+            const timestamp = new Date().toISOString()
+            const finalData = { ...data, image: imageUrl };
+
+            let newCategoryList
+
+            if (dataToEdit) {
+                // Editing existing
+                newCategoryList = savedCategories.map((cat: ServiceCategoryType) =>
+                    cat.id === dataToEdit.id ? { ...cat, ...finalData, updatedAt: timestamp } : cat
+                )
+            } else {
+                // New Category
+                const newItem = {
+                    id: Date.now().toString(),
+                    ...finalData,
+                    updatedAt: timestamp
+                }
+                newCategoryList = [...savedCategories, newItem]
+            }
+
+            await saveSection({ categories: newCategoryList });
+
+            if (onSuccess) onSuccess()
+            if (handleClose) handleClose()
+        } catch (error) {
+            console.error("Error saving category:", error);
+            alert("Failed to save service category.");
+        } finally {
+            setIsSaving(false);
         }
-
-        localStorage.setItem('service-categories', JSON.stringify(newCategoryList))
-
-        if (onSuccess) onSuccess()
-        if (handleClose) handleClose()
     }
 
     const handleRelatedContentSave = (data: RelatedContentData) => {
@@ -174,6 +201,7 @@ const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }:
 
     return (
         <>
+            {error && <Alert severity="error" className="mb-4">{error}</Alert>}
             <form onSubmit={handleSubmit(onSubmit)}>
                 <Grid container spacing={6}>
                     <Grid size={{ xs: 12 }}>
@@ -244,6 +272,7 @@ const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }:
                                                             e.stopPropagation()
                                                             setValue('image', '')
                                                             setFiles([])
+                                                            setSelectedFile(null)
                                                         }}>
                                                             Remove Image
                                                         </Button>
@@ -329,8 +358,8 @@ const ServiceCategoryEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess }:
                     </Grid>
 
                     <Grid size={{ xs: 12 }} className='flex justify-end pt-5'>
-                        <Button variant='contained' size='large' type='submit'>
-                            Save Category
+                        <Button variant='contained' size='large' type='submit' disabled={isSaving}>
+                            {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save Category'}
                         </Button>
                     </Grid>
                 </Grid>

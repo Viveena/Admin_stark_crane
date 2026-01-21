@@ -65,7 +65,7 @@ const AddCategoryDrawer = ({ open, handleClose }: Props) => {
     const saveCategories = async (newCategories: Category[]) => {
         setCategories(newCategories); // Optimistic update
         try {
-            await saveSection(newCategories);
+            await saveSection({ categories: newCategories });
         } catch (e) {
             console.error("Failed to save categories", e);
             // Revert or show error? For now just log.

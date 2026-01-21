@@ -19,6 +19,8 @@ import CardContent from '@mui/material/CardContent'
 import Grid from '@mui/material/Grid2'
 import Chip from '@mui/material/Chip'
 import OutlinedInput from '@mui/material/OutlinedInput'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -31,6 +33,7 @@ import { TextAlign } from '@tiptap/extension-text-align'
 // Local Imports
 import EditorToolbar from '../write/EditorToolbar'
 import '@/libs/styles/tiptapEditor.css'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type Section = {
     title: string
@@ -94,8 +97,21 @@ const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: 
 }
 
 const EditBlogDrawer = ({ open, handleClose, blogData, onUpdate }: Props) => {
+    // Hooks Integration
+    const { data: postsData, loading: postsLoading, error: postsError, saveSection: savePosts, uploadImage } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'items'
+    });
+
+    const { data: categoriesData } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'categories'
+    });
+
     const [categories, setCategories] = useState<Category[]>([])
     const [allBlogs, setAllBlogs] = useState<BlogPost[]>([])
+    const [isSaving, setIsSaving] = useState(false)
+    const [selectedSectionFiles, setSelectedSectionFiles] = useState<{ [key: number]: File }>({})
 
     const {
         control,
@@ -119,15 +135,16 @@ const EditBlogDrawer = ({ open, handleClose, blogData, onUpdate }: Props) => {
     })
 
     useEffect(() => {
-        // Load Categories
-        const savedCategories = localStorage.getItem('blog-categories')
-        if (savedCategories) {
-            setCategories(JSON.parse(savedCategories))
+        if (categoriesData && categoriesData.categories) {
+            setCategories(categoriesData.categories);
         }
+    }, [categoriesData])
 
-        const savedPosts = JSON.parse(localStorage.getItem('blog-posts') || '[]')
-        setAllBlogs(savedPosts)
-    }, [])
+    useEffect(() => {
+        if (postsData && postsData.items) {
+            setAllBlogs(postsData.items);
+        }
+    }, [postsData])
 
     useEffect(() => {
         if (open && blogData) {
@@ -138,20 +155,48 @@ const EditBlogDrawer = ({ open, handleClose, blogData, onUpdate }: Props) => {
                 relatedBlogs: blogData.relatedBlogs || [],
                 sections: blogData.sections || [{ title: '', content: '', imageUrl: '' }]
             })
+            setSelectedSectionFiles({});
         }
     }, [open, blogData, reset])
 
-    const onSubmit = (data: FormValues) => {
-        const savedPosts = JSON.parse(localStorage.getItem('blog-posts') || '[]')
-        const timestamp = new Date().toISOString()
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // Upload Section Images if any new ones selected
+            const updatedSections = await Promise.all(data.sections.map(async (section, index) => {
+                let sectionImageUrl = section.imageUrl;
+                if (selectedSectionFiles[index]) {
+                    sectionImageUrl = await uploadImage(selectedSectionFiles[index]);
+                }
+                return { ...section, imageUrl: sectionImageUrl };
+            }));
 
-        const newPosts = savedPosts.map((post: any) =>
-            post.id === blogData.id ? { ...post, ...data, updatedAt: timestamp } : post
-        )
+            const savedPosts = postsData?.items || [];
+            const timestamp = new Date().toISOString()
 
-        localStorage.setItem('blog-posts', JSON.stringify(newPosts))
-        handleClose()
-        onUpdate()
+            const newPosts = savedPosts.map((post: any) =>
+                post.id === blogData.id ? {
+                    ...post,
+                    ...data,
+                    sections: updatedSections,
+                    updatedAt: timestamp
+                } : post
+            )
+
+            await savePosts({ items: newPosts });
+            handleClose()
+            onUpdate()
+        } catch (error) {
+            console.error("Failed to update blog", error);
+            alert("Failed to update blog post");
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
+    const handleSectionFileSelect = (index: number, file: File) => {
+        setSelectedSectionFiles(prev => ({ ...prev, [index]: file }));
+        setValue(`sections.${index}.imageUrl`, file.name);
     }
 
     return (
@@ -171,6 +216,7 @@ const EditBlogDrawer = ({ open, handleClose, blogData, onUpdate }: Props) => {
             </div>
             <Divider />
             <div className='p-5 overflow-y-auto flex-1'>
+                {postsError && <Alert severity="error">{postsError}</Alert>}
                 <form onSubmit={handleSubmit(onSubmit)} className='flex flex-col gap-5'>
                     <Controller
                         name='category'
@@ -270,6 +316,48 @@ const EditBlogDrawer = ({ open, handleClose, blogData, onUpdate }: Props) => {
                                         />
                                     )}
                                 />
+                                <div className='flex items-center gap-4'>
+                                    <Controller
+                                        name={`sections.${index}.imageUrl`}
+                                        control={control}
+                                        render={({ field }) => (
+                                            <TextField
+                                                {...field}
+                                                size='small'
+                                                fullWidth
+                                                label='Section Image URL'
+                                                slotProps={{
+                                                    input: {
+                                                        readOnly: true,
+                                                    }
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <Button component='label' variant='outlined' htmlFor={`edit-section-image-upload-${index}`} className='min-is-fit'>
+                                        Change
+                                        <input
+                                            hidden
+                                            id={`edit-section-image-upload-${index}`}
+                                            type='file'
+                                            accept='image/*'
+                                            onChange={(event) => {
+                                                const { files } = event.target
+                                                if (files && files.length !== 0) {
+                                                    handleSectionFileSelect(index, files[0]);
+                                                }
+                                            }}
+                                        />
+                                    </Button>
+                                    {/* Preview for section image */}
+                                    {(selectedSectionFiles[index]) && (
+                                        <img
+                                            src={URL.createObjectURL(selectedSectionFiles[index])}
+                                            alt="Preview"
+                                            className="h-10 w-10 object-cover rounded"
+                                        />
+                                    )}
+                                </div>
                                 <Controller
                                     name={`sections.${index}.content`}
                                     control={control}
@@ -282,8 +370,8 @@ const EditBlogDrawer = ({ open, handleClose, blogData, onUpdate }: Props) => {
                     ))}
 
                     <div className='flex items-center gap-4'>
-                        <Button variant='contained' type='submit' fullWidth>
-                            Update
+                        <Button variant='contained' type='submit' fullWidth disabled={isSaving}>
+                            {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Update'}
                         </Button>
                         <Button variant='outlined' color='secondary' fullWidth onClick={handleClose}>
                             Cancel

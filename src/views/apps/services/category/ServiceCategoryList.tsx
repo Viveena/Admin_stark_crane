@@ -20,6 +20,8 @@ import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Type Imports
 import type { ServiceCategoryType } from './ServiceCategoryEditor'
@@ -30,6 +32,9 @@ import ServicePageEditor, { ServiceItemType } from '../service/ServicePageEditor
 import ServiceMappingDialog from './ServiceMappingDialog'
 import ServiceListDialog from './ServiceListDialog'
 import { number } from 'valibot'
+
+// Local Imports
+import { usePageSection } from '@/hooks/usePageSection'
 
 // Row Component
 type RowProps = {
@@ -85,6 +90,17 @@ const Row = ({
 }
 
 const ServiceCategoryList = () => {
+    // Hooks Integration
+    const { data: categoriesData, loading: catLoading, error: catError, saveSection: saveCategories } = usePageSection({
+        pageKey: 'services',
+        sectionKey: 'categories'
+    });
+
+    const { data: servicesData, loading: svcLoading, error: svcError, saveSection: saveServices } = usePageSection({
+        pageKey: 'services',
+        sectionKey: 'items'
+    });
+
     // States
     const [data, setData] = useState<ServiceCategoryType[]>([])
     const [filteredData, setFilteredData] = useState<ServiceCategoryType[]>([])
@@ -113,38 +129,34 @@ const ServiceCategoryList = () => {
     const [editorOpen, setEditorOpen] = useState(false)
     const [editingNode, setEditingNode] = useState<ServiceCategoryType | undefined>(undefined)
 
-    // Load data
-    const loadData = () => {
-        // Categories
-        const savedData = localStorage.getItem('service-categories')
-        if (savedData) {
-            const parsedData = JSON.parse(savedData)
-            setData(parsedData)
-            setFilteredData(parsedData)
+    useEffect(() => {
+        if (categoriesData && categoriesData.categories) {
+            setData(categoriesData.categories);
+            setFilteredData(categoriesData.categories);
         }
-
-        // Services & Counts
-        const savedServices = JSON.parse(localStorage.getItem('category-services') || '[]') as ServiceItemType[]
-        const counts: Record<string, number> = {}
-        savedServices.forEach(s => {
-            if (s.categoryId) {
-                counts[s.categoryId] = (counts[s.categoryId] || 0) + 1
-            }
-        })
-        setCategoryServiceCounts(counts)
-    }
+    }, [categoriesData])
 
     useEffect(() => {
-        loadData()
-    }, [viewMode])
+        if (servicesData && servicesData.items) {
+            const counts: Record<string, number> = {}
+            servicesData.items.forEach((s: ServiceItemType) => {
+                if (s.categoryId) {
+                    counts[s.categoryId] = (counts[s.categoryId] || 0) + 1
+                }
+            })
+            setCategoryServiceCounts(counts)
+        }
+    }, [servicesData])
 
     // Filter
     useEffect(() => {
-        const result = data.filter(item =>
-            item.title.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        setFilteredData(result)
-        setPage(0)
+        if (data) {
+            const result = data.filter(item =>
+                item.title.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            setFilteredData(result)
+            setPage(0)
+        }
     }, [searchTerm, data])
 
     const handleChangePage = (event: unknown, newPage: number) => setPage(newPage)
@@ -168,7 +180,7 @@ const ServiceCategoryList = () => {
     const handleEditFromList = (service: ServiceItemType) => {
         setServiceListOpen(false)
         setServiceToEdit(service)
-        setSelectedCategory(undefined) // We might want to find the category, but for editing it doesn't strictly matter for initial props, but let's just leave it undefined or null, the editor handles it via dataToEdit
+        setSelectedCategory(undefined)
         setViewMode('service-editor')
     }
 
@@ -183,32 +195,30 @@ const ServiceCategoryList = () => {
     }
 
     const handleMappingSave = () => {
-        loadData()
+        // loadData() // Handled by hook
         setMappingDialogOpen(false)
     }
 
-    const handleServiceSave = (service: ServiceItemType) => {
-        const allServices = JSON.parse(localStorage.getItem('category-services') || '[]') as ServiceItemType[]
-
-        const otherServices = allServices.filter(s => s.id !== service.id)
+    const handleServiceSave = async (service: ServiceItemType) => {
+        const allServices = servicesData?.items || [];
+        const otherServices = allServices.filter((s: ServiceItemType) => s.id !== service.id)
         const updatedAllServices = [...otherServices, service]
 
-        localStorage.setItem('category-services', JSON.stringify(updatedAllServices))
+        await saveServices({ items: updatedAllServices });
 
         setViewMode('list')
         setServiceToEdit(undefined)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this category?')) {
             const newData = data.filter(cat => cat.id !== id)
-            localStorage.setItem('service-categories', JSON.stringify(newData))
-            loadData()
+            await saveCategories({ categories: newData });
         }
     }
 
     const handleEditorSuccess = () => {
-        loadData()
+        // loadData() // Handled by hook
         setEditorOpen(false)
     }
 
@@ -257,6 +267,9 @@ const ServiceCategoryList = () => {
                     </div>
                 }
             />
+            {(catLoading || svcLoading) && <div className="p-4"><CircularProgress size={20} /> Loading...</div>}
+            {(catError || svcError) && <Alert severity="error" className="m-4">Error loading data</Alert>}
+
             <TableContainer>
                 <Table>
                     <TableHead>
@@ -338,7 +351,7 @@ const ServiceCategoryList = () => {
                 open={serviceListOpen}
                 onClose={() => {
                     setServiceListOpen(false)
-                    loadData() // Refresh counts if deletions happened
+                    // loadData() // Refreshed automatically via hook
                 }}
                 onEdit={handleEditFromList}
             />

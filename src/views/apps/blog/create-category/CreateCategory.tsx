@@ -25,9 +25,14 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller } from 'react-hook-form'
+
+// Local Imports
+import { usePageSection } from '@/hooks/usePageSection'
 
 type FormValues = {
     title: string
@@ -41,11 +46,19 @@ type Category = {
 }
 
 const CreateCategory = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'categories'
+    });
+
     // States
     const [categories, setCategories] = useState<Category[]>([])
     const [fileName, setFileName] = useState('')
     const [status, setStatus] = useState('Published')
     const [editId, setEditId] = useState<string | null>(null)
+    const [isSaving, setIsSaving] = useState(false)
+    const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
     // Refs
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -65,51 +78,72 @@ const CreateCategory = () => {
 
     // Load Data
     useEffect(() => {
-        const savedData = localStorage.getItem('blog-categories')
-        if (savedData) {
-            setCategories(JSON.parse(savedData))
+        if (sectionData && sectionData.categories) {
+            setCategories(sectionData.categories)
         }
-    }, [])
+    }, [sectionData])
 
-    const saveCategories = (newCategories: Category[]) => {
-        setCategories(newCategories)
-        localStorage.setItem('blog-categories', JSON.stringify(newCategories))
+    const saveCategories = async (newCategories: Category[]) => {
+        setIsSaving(true);
+        try {
+            setCategories(newCategories) // Optimistic update
+            await saveSection({ categories: newCategories })
+        } catch (e) {
+            console.error("Failed to save categories", e);
+            alert("Failed to save categories");
+        } finally {
+            setIsSaving(false);
+        }
     }
 
-    // Handle File Upload
-    const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    // Handle File Upload Select
+    const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
         const { files } = event.target
         if (files && files.length !== 0) {
             setFileName(files[0].name)
+            setSelectedFile(files[0])
         }
     }
 
     const resetForm = () => {
         reset({ title: '' })
         setFileName('')
+        setSelectedFile(null)
         setStatus('Published')
         setEditId(null)
     }
 
     // Handle Form Submit
-    const onSubmit = (data: FormValues) => {
-        const newCategory: Category = {
-            id: editId || Date.now().toString(),
-            title: data.title,
-            image: fileName,
-            status
-        }
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            let imageUrl = fileName;
+            if (selectedFile) {
+                imageUrl = await uploadImage(selectedFile);
+            }
 
-        let updatedCategories
-        if (editId) {
-            updatedCategories = categories.map(cat => (cat.id === editId ? newCategory : cat))
-        } else {
-            updatedCategories = [...categories, newCategory]
-        }
+            const newCategory: Category = {
+                id: editId || Date.now().toString(),
+                title: data.title,
+                image: imageUrl,
+                status
+            }
 
-        saveCategories(updatedCategories)
-        alert(editId ? 'Category Updated' : 'Category Created')
-        resetForm()
+            let updatedCategories
+            if (editId) {
+                updatedCategories = categories.map(cat => (cat.id === editId ? newCategory : cat))
+            } else {
+                updatedCategories = [...categories, newCategory]
+            }
+
+            await saveCategories(updatedCategories)
+            alert(editId ? 'Category Updated' : 'Category Created')
+            resetForm()
+        } catch (e) {
+            console.error(e);
+            alert("Error saving category");
+            setIsSaving(false);
+        }
     }
 
     const handleEdit = (category: Category) => {
@@ -117,18 +151,21 @@ const CreateCategory = () => {
         setValue('title', category.title)
         setFileName(category.image)
         setStatus(category.status)
+        // Note: We don't restore the file object, so if they don't change image, we keep the old URL (which is in fileName)
+        setSelectedFile(null)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this category?')) {
             const updatedCategories = categories.filter(cat => cat.id !== id)
-            saveCategories(updatedCategories)
+            await saveCategories(updatedCategories)
         }
     }
 
     return (
         <Grid container spacing={6}>
             <Grid size={{ xs: 12 }}>
+                {error && <Alert severity="error">{error}</Alert>}
                 <Card>
                     <CardHeader title={editId ? 'Edit Category' : 'Create New Category'} />
                     <CardContent>
@@ -164,7 +201,10 @@ const CreateCategory = () => {
                                                     readOnly: true,
                                                     endAdornment: fileName ? (
                                                         <InputAdornment position='end'>
-                                                            <IconButton size='small' edge='end' onClick={() => setFileName('')}>
+                                                            <IconButton size='small' edge='end' onClick={() => {
+                                                                setFileName('');
+                                                                setSelectedFile(null);
+                                                            }}>
                                                                 <i className='ri-close-line' />
                                                             </IconButton>
                                                         </InputAdornment>
@@ -174,7 +214,7 @@ const CreateCategory = () => {
                                         />
                                         <Button component='label' variant='outlined' htmlFor='category-image' className='min-is-fit'>
                                             Choose Image
-                                            <input hidden id='category-image' type='file' onChange={handleFileUpload} ref={fileInputRef} />
+                                            <input hidden id='category-image' type='file' onChange={handleFileSelect} ref={fileInputRef} />
                                         </Button>
                                     </div>
                                 </Grid>
@@ -197,8 +237,8 @@ const CreateCategory = () => {
                                     <Button variant='outlined' color='secondary' onClick={resetForm}>
                                         Reset
                                     </Button>
-                                    <Button variant='contained' type='submit'>
-                                        {editId ? 'Update Category' : 'Create Category'}
+                                    <Button variant='contained' type='submit' disabled={isSaving}>
+                                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (editId ? 'Update Category' : 'Create Category')}
                                     </Button>
                                 </Grid>
                             </Grid>
@@ -210,7 +250,7 @@ const CreateCategory = () => {
             {/* Categories Table */}
             <Grid size={{ xs: 12 }}>
                 <Card>
-                    <CardHeader title='Categories List' />
+                    <CardHeader title='Categories List' action={loading && <CircularProgress size={20} />} />
                     <TableContainer component={Paper} className='shadow-none border rounded'>
                         <Table aria-label='categories table'>
                             <TableHead>
@@ -234,7 +274,9 @@ const CreateCategory = () => {
                                             <TableCell component='th' scope='row'>
                                                 {row.title}
                                             </TableCell>
-                                            <TableCell>{row.image || 'No Image'}</TableCell>
+                                            <TableCell>
+                                                {row.image && <img src={row.image} alt={row.title} className="w-10 h-10 object-cover rounded" />}
+                                            </TableCell>
                                             <TableCell>
                                                 <Chip
                                                     label={row.status}

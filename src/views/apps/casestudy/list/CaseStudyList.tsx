@@ -31,7 +31,7 @@ import { usePageSection } from '@/hooks/usePageSection'
 const CaseStudyList = () => {
     // Hook Integration
     const { data: sectionData, loading, error, saveSection } = usePageSection({
-        pageKey: 'case-study',
+        pageKey: 'case_study',
         sectionKey: 'items'
     });
 
@@ -39,7 +39,7 @@ const CaseStudyList = () => {
     const [editorOpen, setEditorOpen] = useState(false)
     const [landingOpen, setLandingOpen] = useState(false)
     const [selectedPost, setSelectedPost] = useState<CaseStudyPost | undefined>(undefined)
-    const { canCreate } = usePermission('case-study')
+    const { canCreate } = usePermission('case_study')
 
     // Pagination and Search State
     const [page, setPage] = useState(0)

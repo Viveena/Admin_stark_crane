@@ -56,7 +56,7 @@ const INTERNAL_PAGES = [
 const CaseStudyLandingSettings = ({ handleClose }: Props) => {
     // Hook Integration
     const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
-        pageKey: 'case-study',
+        pageKey: 'case_study',
         sectionKey: 'landing'
     });
 

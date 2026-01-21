@@ -59,7 +59,7 @@ const CaseStudyEditor = ({ isDrawer, handleClose, dataToEdit, onSuccess, onSave 
 
     // Hook for Uploads
     const { uploadImage } = usePageSection({
-        pageKey: 'case-study',
+        pageKey: 'case_study',
         sectionKey: 'temp'
     });
 

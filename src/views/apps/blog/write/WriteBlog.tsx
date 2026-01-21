@@ -23,6 +23,8 @@ import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
 import Chip from '@mui/material/Chip'
 import OutlinedInput from '@mui/material/OutlinedInput'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -35,6 +37,7 @@ import { TextAlign } from '@tiptap/extension-text-align'
 // Local Imports
 import EditorToolbar from './EditorToolbar'
 import '@/libs/styles/tiptapEditor.css'
+import { usePageSection } from '@/hooks/usePageSection'
 
 type Section = {
     title: string
@@ -57,7 +60,13 @@ type Category = {
 
 type BlogPost = {
     id: string
-    blogTitle: string /* ... other fields ... */
+    blogTitle: string
+    mainImage: string
+    category: string
+    relatedBlogs: string[]
+    sections: Section[]
+    publishedAt: string
+    updatedAt: string
 }
 
 const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: string) => void }) => {
@@ -76,7 +85,7 @@ const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: 
         onUpdate: ({ editor }) => {
             onChange(editor.getHTML())
         },
-        // Fix for hydration mismatch (if needed, though 'immediatelyRender: false' is clearer)
+        // Fix for hydration mismatch
         immediatelyRender: false
     })
 
@@ -92,8 +101,23 @@ const TiptapEditor = ({ value, onChange }: { value: string; onChange: (content: 
 }
 
 const WriteBlog = () => {
+    // Hooks Integration
+    const { data: postsData, loading: postsLoading, error: postsError, saveSection: savePosts, uploadImage } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'items'
+    });
+
+    const { data: categoriesData } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'categories'
+    });
+
     const [categories, setCategories] = useState<Category[]>([])
     const [allBlogs, setAllBlogs] = useState<BlogPost[]>([])
+    const [isSaving, setIsSaving] = useState(false)
+    const [selectedMainFile, setSelectedMainFile] = useState<File | null>(null)
+    const [selectedSectionFiles, setSelectedSectionFiles] = useState<{ [key: number]: File }>({})
+
     const router = useRouter()
     const searchParams = useSearchParams()
     const editId = searchParams.get('id')
@@ -121,66 +145,103 @@ const WriteBlog = () => {
 
     // Fetch categories and post data (if editing)
     useEffect(() => {
-        // Load Categories
-        const savedCategories = localStorage.getItem('blog-categories')
-        if (savedCategories) {
-            setCategories(JSON.parse(savedCategories))
+        if (categoriesData && categoriesData.categories) {
+            setCategories(categoriesData.categories);
         }
+    }, [categoriesData])
 
-        const savedPosts = JSON.parse(localStorage.getItem('blog-posts') || '[]')
-        setAllBlogs(savedPosts)
+    useEffect(() => {
+        if (postsData && postsData.items) {
+            setAllBlogs(postsData.items);
 
-        // Load Post if editing
-        if (editId) {
-            console.log('Saved Posts:', savedPosts) // Debug log
-            const postToEdit = savedPosts.find((post: any) => post.id === editId)
-            console.log('Post to Edit:', postToEdit) // Debug log
-
-            if (postToEdit) {
-                // Explicitly mapping to ensure only form values are reset and structure is correct
-                reset({
-                    category: postToEdit.category || '',
-                    blogTitle: postToEdit.blogTitle || '',
-                    mainImage: postToEdit.mainImage || '',
-                    relatedBlogs: postToEdit.relatedBlogs || [],
-                    sections: postToEdit.sections || [{ title: '', content: '', imageUrl: '' }]
-                })
+            if (editId) {
+                const postToEdit = postsData.items.find((post: any) => post.id === editId)
+                if (postToEdit) {
+                    reset({
+                        category: postToEdit.category || '',
+                        blogTitle: postToEdit.blogTitle || '',
+                        mainImage: postToEdit.mainImage || '',
+                        relatedBlogs: postToEdit.relatedBlogs || [],
+                        sections: postToEdit.sections || [{ title: '', content: '', imageUrl: '' }]
+                    })
+                }
             }
         }
-    }, [editId, reset])
+    }, [postsData, editId, reset])
 
-    const onSubmit = (data: FormValues) => {
-        const savedPosts = JSON.parse(localStorage.getItem('blog-posts') || '[]')
-        const timestamp = new Date().toISOString()
-
-        let newPosts
-        if (editId) {
-            // Update existing
-            newPosts = savedPosts.map((post: any) =>
-                post.id === editId ? { ...post, ...data, updatedAt: timestamp } : post
-            )
-        } else {
-            // Create new
-            const newPost = {
-                id: Date.now().toString(),
-                ...data,
-                publishedAt: timestamp,
-                updatedAt: timestamp
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            // Upload Main Image
+            let mainImageUrl = data.mainImage;
+            if (selectedMainFile) {
+                mainImageUrl = await uploadImage(selectedMainFile);
             }
-            newPosts = [...savedPosts, newPost]
-        }
 
-        localStorage.setItem('blog-posts', JSON.stringify(newPosts))
-        alert(editId ? 'Blog Post Updated!' : 'Blog Post Published!')
-        if (!editId) {
-            reset()
-        } else {
-            router.push('/apps/blog/list')
+            // Upload Section Images
+            const updatedSections = await Promise.all(data.sections.map(async (section, index) => {
+                let sectionImageUrl = section.imageUrl;
+                if (selectedSectionFiles[index]) {
+                    sectionImageUrl = await uploadImage(selectedSectionFiles[index]);
+                }
+                return { ...section, imageUrl: sectionImageUrl };
+            }));
+
+            const timestamp = new Date().toISOString()
+            const savedPosts = postsData?.items || [];
+
+            let newPosts
+            if (editId) {
+                // Update existing
+                newPosts = savedPosts.map((post: any) =>
+                    post.id === editId ? {
+                        ...post,
+                        ...data,
+                        mainImage: mainImageUrl,
+                        sections: updatedSections,
+                        updatedAt: timestamp
+                    } : post
+                )
+            } else {
+                // Create new
+                const newPost = {
+                    id: Date.now().toString(),
+                    ...data,
+                    mainImage: mainImageUrl,
+                    sections: updatedSections,
+                    publishedAt: timestamp,
+                    updatedAt: timestamp
+                }
+                newPosts = [...savedPosts, newPost]
+            }
+
+            await savePosts({ items: newPosts });
+            alert(editId ? 'Blog Post Updated!' : 'Blog Post Published!')
+
+            if (!editId) {
+                reset();
+                setSelectedMainFile(null);
+                setSelectedSectionFiles({});
+            } else {
+                router.push('/apps/blog/list')
+            }
+
+        } catch (error) {
+            console.error("Error saving blog post:", error);
+            alert("Failed to save blog post.");
+        } finally {
+            setIsSaving(false);
         }
+    }
+
+    const handleSectionFileSelect = (index: number, file: File) => {
+        setSelectedSectionFiles(prev => ({ ...prev, [index]: file }));
+        setValue(`sections.${index}.imageUrl`, file.name);
     }
 
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
+            {postsError && <Alert severity="error" className="mb-4">{postsError}</Alert>}
             <Grid container spacing={6}>
                 {/* Main Details */}
                 <Grid size={{ xs: 12 }}>
@@ -278,9 +339,13 @@ const WriteBlog = () => {
                                                     label='Main Image'
                                                     slotProps={{
                                                         input: {
+                                                            readOnly: true,
                                                             endAdornment: field.value ? (
                                                                 <InputAdornment position='end'>
-                                                                    <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                    <IconButton size='small' edge='end' onClick={() => {
+                                                                        field.onChange('');
+                                                                        setSelectedMainFile(null);
+                                                                    }}>
                                                                         <i className='ri-close-line' />
                                                                     </IconButton>
                                                                 </InputAdornment>
@@ -298,15 +363,22 @@ const WriteBlog = () => {
                                                         onChange={(event) => {
                                                             const { files } = event.target
                                                             if (files && files.length !== 0) {
-                                                                field.onChange(files[0].name)
+                                                                field.onChange(files[0].name);
+                                                                setSelectedMainFile(files[0]);
                                                             }
                                                         }}
                                                     />
                                                 </Button>
+                                                {(field.value || selectedMainFile) && (
+                                                    <img
+                                                        src={selectedMainFile ? URL.createObjectURL(selectedMainFile) : field.value}
+                                                        alt="Preview"
+                                                        className="h-10 w-10 object-cover rounded"
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     />
-                                    {/* File Upload UI can be added here if needed */}
                                 </Grid>
                             </Grid>
                         </CardContent>
@@ -359,25 +431,34 @@ const WriteBlog = () => {
                                                 name={`sections.${index}.imageUrl`}
                                                 control={control}
                                                 render={({ field }) => (
-                                                    <TextField
-                                                        {...field}
-                                                        size='small'
-                                                        fullWidth
-                                                        label='Section Image URL'
-                                                        placeholder='No file chosen'
-                                                        variant='outlined'
-                                                        slotProps={{
-                                                            input: {
-                                                                endAdornment: field.value ? (
-                                                                    <InputAdornment position='end'>
-                                                                        <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
-                                                                            <i className='ri-close-line' />
-                                                                        </IconButton>
-                                                                    </InputAdornment>
-                                                                ) : null
-                                                            }
-                                                        }}
-                                                    />
+                                                    <div className="flex-auto">
+                                                        <TextField
+                                                            {...field}
+                                                            size='small'
+                                                            fullWidth
+                                                            label='Section Image URL'
+                                                            placeholder='No file chosen'
+                                                            variant='outlined'
+                                                            slotProps={{
+                                                                input: {
+                                                                    readOnly: true,
+                                                                    endAdornment: field.value ? (
+                                                                        <InputAdornment position='end'>
+                                                                            <IconButton size='small' edge='end' onClick={() => {
+                                                                                field.onChange('');
+                                                                                // Clean up file selection for this index if cleared
+                                                                                const newFiles = { ...selectedSectionFiles };
+                                                                                delete newFiles[index];
+                                                                                setSelectedSectionFiles(newFiles);
+                                                                            }}>
+                                                                                <i className='ri-close-line' />
+                                                                            </IconButton>
+                                                                        </InputAdornment>
+                                                                    ) : null
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
                                                 )}
                                             />
                                             <Button component='label' variant='outlined' htmlFor={`section-image-upload-${index}`} className='min-is-fit'>
@@ -390,11 +471,19 @@ const WriteBlog = () => {
                                                     onChange={(event) => {
                                                         const { files } = event.target
                                                         if (files && files.length !== 0) {
-                                                            setValue(`sections.${index}.imageUrl`, files[0].name)
+                                                            handleSectionFileSelect(index, files[0]);
                                                         }
                                                     }}
                                                 />
                                             </Button>
+                                            {/* Preview for section image */}
+                                            {(field.imageUrl || selectedSectionFiles[index]) && (
+                                                <img
+                                                    src={selectedSectionFiles[index] ? URL.createObjectURL(selectedSectionFiles[index]) : field.imageUrl}
+                                                    alt="Preview"
+                                                    className="h-10 w-10 object-cover rounded"
+                                                />
+                                            )}
                                         </div>
                                     </Grid>
                                     <Grid size={{ xs: 12 }}>
@@ -414,8 +503,8 @@ const WriteBlog = () => {
                 ))}
 
                 <Grid size={{ xs: 12 }} className='flex justify-end pbe-10'>
-                    <Button variant='contained' size='large' type='submit'>
-                        Publish Blog
+                    <Button variant='contained' size='large' type='submit' disabled={isSaving || postsLoading}>
+                        {isSaving ? <CircularProgress size={24} color="inherit" /> : (editId ? 'Update Blog' : 'Publish Blog')}
                     </Button>
                 </Grid>
             </Grid>

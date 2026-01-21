@@ -20,10 +20,15 @@ import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Type Imports
 import type { ServiceItemType } from '../service/ServicePageEditor'
 import type { ServiceCategoryType } from './ServiceCategoryEditor'
+
+// Local Imports
+import { usePageSection } from '@/hooks/usePageSection'
 
 type Props = {
     open: boolean
@@ -32,6 +37,17 @@ type Props = {
 }
 
 const ServiceListDialog = ({ open, onClose, onEdit }: Props) => {
+    // Hooks Integration
+    const { data: servicesData, loading: svcLoading, error: svcError, saveSection: saveServices } = usePageSection({
+        pageKey: 'services',
+        sectionKey: 'items'
+    });
+
+    const { data: categoriesData, loading: catLoading } = usePageSection({
+        pageKey: 'services',
+        sectionKey: 'categories'
+    });
+
     const [services, setServices] = useState<ServiceItemType[]>([])
     const [categories, setCategories] = useState<ServiceCategoryType[]>([])
     const [searchTerm, setSearchTerm] = useState('')
@@ -40,22 +56,35 @@ const ServiceListDialog = ({ open, onClose, onEdit }: Props) => {
 
     useEffect(() => {
         if (open) {
-            loadData()
+            // Data is loaded via hooks, just sync state
+            if (servicesData && servicesData.items) {
+                setServices(servicesData.items)
+            }
+            if (categoriesData && categoriesData.categories) {
+                setCategories(categoriesData.categories)
+            }
         }
-    }, [open])
+    }, [open, servicesData, categoriesData])
 
-    const loadData = () => {
-        const allServices = JSON.parse(localStorage.getItem('category-services') || '[]') as ServiceItemType[]
-        const allCategories = JSON.parse(localStorage.getItem('service-categories') || '[]') as ServiceCategoryType[]
-        setServices(allServices)
-        setCategories(allCategories)
-    }
+    // Keep data updated if hooks update while open
+    useEffect(() => {
+        if (open && servicesData && servicesData.items) {
+            setServices(servicesData.items)
+        }
+    }, [servicesData, open])
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this service?')) {
             const updatedServices = services.filter(s => s.id !== id)
-            localStorage.setItem('category-services', JSON.stringify(updatedServices))
+            // Optimistic update
             setServices(updatedServices)
+            try {
+                await saveServices({ items: updatedServices });
+            } catch (error) {
+                console.error("Failed to delete service", error);
+                alert("Failed to delete service.");
+                // Revert handled by re-render from hook if strict, but simple alert ok for now
+            }
         }
     }
 
@@ -81,6 +110,9 @@ const ServiceListDialog = ({ open, onClose, onEdit }: Props) => {
         <Dialog open={open} onClose={onClose} fullWidth maxWidth='md'>
             <DialogTitle>List of Services</DialogTitle>
             <DialogContent dividers>
+                {(svcLoading || catLoading) && <div className="p-4"><CircularProgress size={20} /> Loading...</div>}
+                {svcError && <Alert severity="error" className="mb-4">{svcError}</Alert>}
+
                 <div className='mbe-4'>
                     <TextField
                         size='small'

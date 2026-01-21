@@ -10,8 +10,6 @@ import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
 import Grid from '@mui/material/Grid2'
 import TextField from '@mui/material/TextField'
-import Divider from '@mui/material/Divider'
-import Typography from '@mui/material/Typography'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
 import Select from '@mui/material/Select'
@@ -21,9 +19,14 @@ import OutlinedInput from '@mui/material/OutlinedInput'
 import InputLabel from '@mui/material/InputLabel'
 import FormControl from '@mui/material/FormControl'
 import FormHelperText from '@mui/material/FormHelperText'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { useForm, Controller, useWatch } from 'react-hook-form'
+
+// Local Imports
+import { usePageSection } from '@/hooks/usePageSection'
 
 type HeroSectionData = {
     heroTitle: string
@@ -72,12 +75,21 @@ const MOCK_PARTS = [
 ]
 
 const EditBlog = () => {
+    // Hook Integration
+    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'blogs',
+        sectionKey: 'landing'
+    });
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
     const {
         control,
         handleSubmit,
         reset,
-        watch,
         setValue,
+        watch,
         formState: { errors }
     } = useForm<FormValues>({
         defaultValues: {
@@ -98,32 +110,46 @@ const EditBlog = () => {
     // Watch section types to handle conditioning and side-effects
     const selectedSectionTypes = useWatch({ control, name: 'sectionTypes' }) || []
 
-    // Load saved data from localStorage on mount
+    // Load saved data from DB on mount/update
     useEffect(() => {
-        const savedData = localStorage.getItem('blog-edit-data')
-        if (savedData) {
-            const parsedData = JSON.parse(savedData)
-            // Merge saved data with default structure to ensure new fields exist
+        if (sectionData) {
             reset({
-                heroTitle: parsedData.heroTitle || 'Welcome to Our Blog',
-                heroSubtitle: parsedData.heroSubtitle || 'Discover the latest news, updates, and stories from our team.',
-                heroImageUrl: parsedData.heroImageUrl || 'hero-image.jpg',
-                ctaText: parsedData.ctaText || 'Read Latest Posts',
-                ctaLink: parsedData.ctaLink || '/apps/blog/write',
-                infoHeading: parsedData.infoHeading || 'What We Write About',
-                infoParagraph: parsedData.infoParagraph || 'We share insights on technology, lifestyle, and industry trends. Stay tuned for expert articles and in-depth guides.',
-                sectionTypes: parsedData.sectionTypes || [],
-                relatedBlogs: parsedData.relatedBlogs || [],
-                relatedServices: parsedData.relatedServices || [],
-                relatedParts: parsedData.relatedParts || []
+                heroTitle: sectionData.heroTitle || '',
+                heroSubtitle: sectionData.heroSubtitle || '',
+                heroImageUrl: sectionData.heroImageUrl || '',
+                ctaText: sectionData.ctaText || '',
+                ctaLink: sectionData.ctaLink || '',
+                infoHeading: sectionData.infoHeading || '',
+                infoParagraph: sectionData.infoParagraph || '',
+                sectionTypes: sectionData.sectionTypes || [],
+                relatedBlogs: sectionData.relatedBlogs || [],
+                relatedServices: sectionData.relatedServices || [],
+                relatedParts: sectionData.relatedParts || []
             })
         }
-    }, [reset])
+    }, [sectionData, reset])
 
-    const onSubmit = (data: FormValues) => {
-        console.log('Submitted Blog Page Data:', data)
-        localStorage.setItem('blog-edit-data', JSON.stringify(data))
-        alert('Blog Page Updated and Saved!')
+    const onSubmit = async (data: FormValues) => {
+        setIsSaving(true);
+        try {
+            let imageUrl = data.heroImageUrl;
+            if (selectedFile) {
+                imageUrl = await uploadImage(selectedFile);
+            }
+
+            const dataToSave = {
+                ...data,
+                heroImageUrl: imageUrl
+            };
+
+            await saveSection(dataToSave);
+            alert('Blog Page Updated and Saved!')
+        } catch (err) {
+            console.error("Failed to save blog settings", err);
+            alert("Failed to save settings.")
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     const availableOptions = [
@@ -135,6 +161,8 @@ const EditBlog = () => {
     return (
         <Grid container spacing={6}>
             <Grid size={{ xs: 12 }}>
+                {loading && <div className="mb-4"><CircularProgress size={20} /> Loading data...</div>}
+                {error && <Alert severity="error" className="mb-4">{error}</Alert>}
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <Grid container spacing={6}>
                         {/* Hero Section */}
@@ -192,7 +220,10 @@ const EditBlog = () => {
                                                                     readOnly: true,
                                                                     endAdornment: field.value ? (
                                                                         <InputAdornment position='end'>
-                                                                            <IconButton size='small' edge='end' onClick={() => field.onChange('')}>
+                                                                            <IconButton size='small' edge='end' onClick={() => {
+                                                                                field.onChange('');
+                                                                                setSelectedFile(null);
+                                                                            }}>
                                                                                 <i className='ri-close-line' />
                                                                             </IconButton>
                                                                         </InputAdornment>
@@ -211,10 +242,18 @@ const EditBlog = () => {
                                                                     const { files } = event.target
                                                                     if (files && files.length !== 0) {
                                                                         field.onChange(files[0].name)
+                                                                        setSelectedFile(files[0])
                                                                     }
                                                                 }}
                                                             />
                                                         </Button>
+                                                        {(field.value || selectedFile) && (
+                                                            <img
+                                                                src={selectedFile ? URL.createObjectURL(selectedFile) : field.value}
+                                                                alt="Preview"
+                                                                className="h-10 w-10 object-cover rounded"
+                                                            />
+                                                        )}
                                                     </div>
                                                 )}
                                             />
@@ -242,7 +281,7 @@ const EditBlog = () => {
                                                         {...field}
                                                         fullWidth
                                                         label='CTA Button Link'
-                                                        placeholder='/articles/1'
+                                                        placeholder='/apps/blog/write'
                                                     />
                                                 )}
                                             />
@@ -483,8 +522,8 @@ const EditBlog = () => {
                         </Grid>
 
                         <Grid size={{ xs: 12 }} className='flex justify-end'>
-                            <Button variant='contained' type='submit'>
-                                Save Changes
+                            <Button variant='contained' type='submit' disabled={isSaving}>
+                                {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Save Changes'}
                             </Button>
                         </Grid>
                     </Grid>
