@@ -283,7 +283,7 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
           )}
 
           {canRead('Chat') && ( // Note: Chat wasn't in list strictly but assuming 'Chat' or linked to 'Other Pages'?
-            // User list: '..., FAQ, Crane Selector, Other Pages'
+            // User list: '..., FAQ, Other Pages'
             // 'Chat' is present in menu. I'll leave it or tag with 'Other Pages'? 
             // Better to wrap with 'Other Pages' or skip if not in list. 
             // User list is SPECIFIC. If not in list, maybe it should be hidden or visible? 
@@ -303,14 +303,14 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
             </MenuItem>
           )}
 
-          {canRead('Crane Selector') && (
+          {canRead('Other Pages') && (
             <MenuItem
               href={`/${locale}/apps/dashboard`}
               icon={<i className='ri-layout-left-line' />}
               exactMatch={false}
               activeUrl='/apps/dashboard'
             >
-              {dictionary['navigation'].craneSelector}
+              {dictionary['navigation'].otherPages}
             </MenuItem>
           )}
 

@@ -146,7 +146,6 @@ const Login = ({ mode }: { mode: Mode }) => {
       { key: 'Contact', url: '/apps/contact' },
       { key: 'FAQ', url: '/apps/faq' },
       { key: 'Chat', url: '/apps/chat' },
-      { key: 'Crane Selector', url: '/apps/dashboard' },
       { key: 'Other Pages', url: '/apps/data-protection' }
     ]
 
