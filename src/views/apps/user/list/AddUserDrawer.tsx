@@ -1,3 +1,5 @@
+'use client'
+
 // React Imports
 import { useState, useEffect } from 'react'
 
@@ -128,7 +130,10 @@ const AddUserDrawer = (props: Props) => {
 
       if (response.ok) {
         // Update local state with the returned user
-        setData([...(userData ?? []), responseData.user])
+        if (typeof setData === 'function') {
+          setData([...(userData ?? []), responseData.user])
+        }
+
         handleClose()
         setFormData(initialData)
         resetForm({ fullName: '', username: '', email: '', role: '', plan: '', status: '' })

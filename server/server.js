@@ -10,6 +10,7 @@ const pagesRoutes = require('./routes/pagesRoutes');
 const rolesRoutes = require('./routes/rolesRoutes');
 const permissionsRoutes = require('./routes/permissionsRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const careerRoutes = require('./routes/careerRoutes');
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/pages', pagesRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/careers', careerRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

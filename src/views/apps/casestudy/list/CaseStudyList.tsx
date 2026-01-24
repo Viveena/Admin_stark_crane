@@ -31,7 +31,7 @@ import { usePageSection } from '@/hooks/usePageSection'
 const CaseStudyList = () => {
     // Hook Integration
     const { data: sectionData, loading, error, saveSection } = usePageSection({
-        pageKey: 'case_study',
+        pageKey: 'case-study',
         sectionKey: 'items'
     });
 

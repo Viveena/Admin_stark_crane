@@ -156,10 +156,10 @@ const RolesTable = ({ tableData }: { tableData?: UsersType[] }) => {
   const columns = useMemo<ColumnDef<UsersTypeWithAction, any>[]>(
     () => [
       columnHelper.display({
-              id: 'serialNumber',
-              header: '#',
-              cell: ({ row }) => <Typography>{row.index + 1}</Typography>
-            }),
+        id: 'serialNumber',
+        header: '#',
+        cell: ({ row }) => <Typography>{row.index + 1}</Typography>
+      }),
       columnHelper.accessor('fullName', {
         header: 'User',
         cell: ({ row }) => (
@@ -192,7 +192,7 @@ const RolesTable = ({ tableData }: { tableData?: UsersType[] }) => {
           </div>
         )
       }),
-      
+
       columnHelper.accessor('status', {
         header: 'Status',
         cell: ({ row }) => (
@@ -284,6 +284,11 @@ const RolesTable = ({ tableData }: { tableData?: UsersType[] }) => {
 
   useEffect(() => {
     const filteredData = data?.filter(user => {
+      const userRole = (user.role || '').toString().toUpperCase().trim();
+      // console.log('Checking user role:', user.role, 'Normalized:', userRole); // Debug log
+
+      if (['SUPER_ADMIN', 'ADMIN', 'SUPER ADMIN', 'ADMINISTRATOR', 'ROOT'].includes(userRole)) return false;
+
       if (role && user.role !== role) return false
 
       return true

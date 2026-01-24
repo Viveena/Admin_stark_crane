@@ -2,8 +2,7 @@
 import Grid from '@mui/material/Grid2'
 
 // Component Imports
-import FaqListTable from '@/views/apps/faq/FaqListTable'
-import FaqCard from '@/views/apps/faq/FaqCard'
+import FaqView from '@/views/apps/faq/FaqView'
 
 // Data Imports
 import { getEcommerceData } from '@/app/server/actions'
@@ -15,10 +14,7 @@ const FaqList = async () => {
     return (
         <Grid container spacing={6}>
             <Grid size={{ xs: 12 }}>
-                <FaqCard />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-                <FaqListTable faqData={data?.faqs} />
+                <FaqView initialData={data?.faqs} />
             </Grid>
         </Grid>
     )

@@ -1,5 +1,5 @@
 const express = require('express');
-const { getRoles, createRole } = require('../controllers/rolesController');
+const { getRoles, createRole, deleteRole } = require('../controllers/rolesController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminOnlyMiddleware = require('../middlewares/adminOnlyMiddleware');
 
@@ -26,5 +26,11 @@ router.post(
     ],
     createRole
 );
+
+/**
+ * DELETE /api/roles/:id
+ * Delete a role
+ */
+router.delete('/:id', deleteRole);
 
 module.exports = router;

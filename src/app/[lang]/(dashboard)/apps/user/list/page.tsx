@@ -2,7 +2,7 @@
 import UserList from '@views/apps/user/list'
 
 // Data Imports
-import { getUserData } from '@/app/server/actions'
+// import { getUserData } from '@/app/server/actions'
 
 /**
  * ! If you need data using an API call, uncomment the below API code, update the `process.env.API_URL` variable in the
@@ -11,22 +11,10 @@ import { getUserData } from '@/app/server/actions'
  * ! because we've used the server action for getting our static data.
  */
 
-/* const getUserData = async () => {
-  // Vars
-  const res = await fetch(`${process.env.API_URL}/apps/user-list`)
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch userData')
-  }
-
-  return res.json()
-} */
-
 const UserListApp = async () => {
   // Vars
-  const data = await getUserData()
-
-  return <UserList userData={data} />
+  // Data will be fetched on client side to handle auth
+  return <UserList userData={[]} />
 }
 
 export default UserListApp

@@ -1,0 +1,4 @@
+2026-01-23T14:29:44.866Z - UpdatePage Error: Error: Table 'stark_crane_admin.products_pages' doesn't exist
+    at PromisePool.query (E:\Admin\Stark_Crane_Admin\server\node_modules\mysql2\lib\promise\pool.js:36:22)
+    at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:200:31)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)

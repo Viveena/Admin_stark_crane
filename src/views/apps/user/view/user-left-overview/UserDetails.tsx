@@ -17,27 +17,24 @@ import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementCli
 import CustomAvatar from '@core/components/mui/Avatar'
 
 // Vars
-const userData = {
-  firstName: 'Seth',
-  lastName: 'Hallam',
-  userName: '@shallamb',
-  billingEmail: 'shallamb@gmail.com',
-  status: 'active',
-  role: 'Subscriber',
-  taxId: 'Tax-8894',
-  contact: '+1 (234) 464-0600',
-  language: ['English'],
-  country: 'France',
-  useAsBillingAddress: true
-}
-
-const UserDetails = () => {
+const UserDetails = ({ userData }: { userData?: any }) => {
   // Vars
   const buttonProps = (children: string, color: ThemeColor, variant: ButtonProps['variant']): ButtonProps => ({
     children,
     color,
     variant
   })
+
+  if (!userData) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant='h5' color='error'>User Data Not Found</Typography>
+          <Typography>Ensure the backend server is running and the user ID is correct.</Typography>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -47,15 +44,15 @@ const UserDetails = () => {
             <div className='flex flex-col items-center justify-center gap-4'>
               <CustomAvatar
                 alt='user-profile'
-                src='/images/avatars/1.png'
+                src={userData.avatar || '/images/avatars/1.png'}
                 variant='rounded'
                 className='rounded-lg'
                 size={120}
               />
-              <Typography variant='h5'>{`${userData.firstName} ${userData.lastName}`}</Typography>
-              <Chip label='Subscriber' variant='tonal' color='error' size='small' />
+              <Typography variant='h5'>{userData.fullName || userData.username}</Typography>
+              <Chip label={userData.role || 'Subscriber'} variant='tonal' color='error' size='small' />
             </div>
-            
+
           </div>
           <div>
             <Typography variant='h5'>Details</Typography>
@@ -65,19 +62,19 @@ const UserDetails = () => {
                 <Typography color='text.primary' className='font-medium'>
                   Full Name:
                 </Typography>
-                <Typography>{userData.firstName} {userData.lastName}</Typography>
+                <Typography>{userData.fullName}</Typography>
               </div>
               <div className='flex items-center flex-wrap gap-x-1.5'>
                 <Typography color='text.primary' className='font-medium'>
                   Username:
                 </Typography>
-                <Typography>{userData.userName}</Typography>
+                <Typography>{userData.username}</Typography>
               </div>
               <div className='flex items-center flex-wrap gap-x-1.5'>
                 <Typography color='text.primary' className='font-medium'>
                   Email:
                 </Typography>
-                <Typography>{userData.billingEmail}</Typography>
+                <Typography>{userData.email}</Typography>
               </div>
               <div className='flex items-center flex-wrap gap-x-1.5'>
                 <Typography color='text.primary' className='font-medium'>
@@ -91,27 +88,9 @@ const UserDetails = () => {
                 </Typography>
                 <Typography>{userData.role}</Typography>
               </div>
-              
-              <div className='flex items-center flex-wrap gap-x-1.5'>
-                <Typography color='text.primary' className='font-medium'>
-                  Contact:
-                </Typography>
-                <Typography>{userData.contact}</Typography>
-              </div>
-              
-              <div className='flex items-center flex-wrap gap-x-1.5'>
-                <Typography color='text.primary' className='font-medium'>
-                  Country:
-                </Typography>
-                <Typography>{userData.country}</Typography>
-              </div>
-              
-              <div className='flex items-center flex-wrap gap-x-1.5'>
-                <Typography color='text.primary' className='font-medium'>
-                  Contact No:
-                </Typography>
-                <Typography>{userData.contact}</Typography>
-              </div>
+
+              {/* Other fields like Contact, Country, etc. might not be in DB yet, hiding or showing if available */}
+
             </div>
           </div>
           <div className='flex gap-4 justify-center'>

@@ -15,8 +15,29 @@ import type { UsersType } from '@/types/apps/userTypes'
 const TableFilters = ({ setData, tableData }: { setData: (data: UsersType[]) => void; tableData?: UsersType[] }) => {
   // States
   const [role, setRole] = useState<UsersType['role']>('')
-
   const [status, setStatus] = useState<UsersType['status']>('')
+  const [roles, setRoles] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch('/api/roles', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          const filteredRoles = (data.roles || []).filter((r: any) => !['SUPER_ADMIN', 'ADMIN', 'USER'].includes(r.name))
+          setRoles(filteredRoles)
+        }
+      } catch (error) {
+        console.error('Error fetching roles:', error)
+      }
+    }
+    fetchRoles()
+  }, [])
 
   useEffect(() => {
     const filteredData = tableData?.filter(user => {
@@ -45,15 +66,15 @@ const TableFilters = ({ setData, tableData }: { setData: (data: UsersType[]) => 
               inputProps={{ placeholder: 'Select Role' }}
             >
               <MenuItem value=''>Select Role</MenuItem>
-              <MenuItem value='admin'>Admin</MenuItem>
-              <MenuItem value='author'>Author</MenuItem>
-              <MenuItem value='editor'>Editor</MenuItem>
-              <MenuItem value='maintainer'>Maintainer</MenuItem>
-              <MenuItem value='subscriber'>Subscriber</MenuItem>
+              {roles.map((role: any) => (
+                <MenuItem key={role.id} value={role.name}>
+                  {role.name}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
         </Grid>
-          
+
         <Grid size={{ xs: 12, sm: 4 }}>
           <FormControl fullWidth>
             <InputLabel id='status-select'>Select Status</InputLabel>

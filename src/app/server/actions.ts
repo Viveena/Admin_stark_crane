@@ -62,3 +62,35 @@ import { db as termsData } from '@/fake-db/apps/terms'
 export const getTermsData = async () => {
   return termsData
 }
+
+export const getUser = async (id: number | string) => {
+  const token = '' // Server side might not have token in localStorage. 
+  // If this action runs on server, we should use headers() to forward cookie or rely on internal API.
+  // For now, assuming public or using generic fetch. 
+  // BETTER: Call DB directly if this is a server action? 
+  // The user rules say: "The server actions below are used to fetch the static data... swap with your own database queries."
+
+  // Im calling the local API.
+  const url = `${process.env.API_URL || 'http://localhost:5000'}/api/users/${id}`
+  console.log(`[actions.ts] Fetching user from: ${url}`)
+
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store'
+    })
+
+    console.log(`[actions.ts] Response status: ${res.status}`)
+
+    if (!res.ok) {
+      console.error(`[actions.ts] Fetch failed`)
+      return null
+    }
+
+    const data = await res.json()
+    console.log(`[actions.ts] Fetched data:`, data)
+    return data.user
+  } catch (error) {
+    console.error(`[actions.ts] Fetch error:`, error)
+    return null
+  }
+}

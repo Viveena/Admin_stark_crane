@@ -1,13 +1,14 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import Grid from '@mui/material/Grid2'
+import Button from '@mui/material/Button'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Chip from '@mui/material/Chip'
@@ -15,20 +16,11 @@ import OutlinedInput from '@mui/material/OutlinedInput'
 import InputLabel from '@mui/material/InputLabel'
 import FormControl from '@mui/material/FormControl'
 import FormHelperText from '@mui/material/FormHelperText'
-import Button from '@mui/material/Button'
 
 // Third-party Imports
-import { useForm, Controller, useWatch } from 'react-hook-form'
+import { useFormContext, Controller, useWatch } from 'react-hook-form'
 
 type RelatedSectionType = 'blogs' | 'services' | 'parts' | 'projects'
-
-type RelatedContentData = {
-    sectionTypes: RelatedSectionType[]
-    relatedBlogs: string[]
-    relatedServices: string[]
-    relatedParts: string[]
-    relatedProjects: string[]
-}
 
 // Mock Data
 const MOCK_BLOGS = [
@@ -59,51 +51,11 @@ const MOCK_PROJECTS = [
     { id: 'pr4', title: 'Data Analytics Dashboard' }
 ]
 
-const CareerRelated = ({ careerData, id }: { careerData?: any; id?: string }) => {
-    const {
-        control,
-        handleSubmit,
-        reset,
-        watch,
-        setValue,
-        formState: { errors }
-    } = useForm<RelatedContentData>({
-        defaultValues: {
-            sectionTypes: [],
-            relatedBlogs: [],
-            relatedServices: [],
-            relatedParts: [],
-            relatedProjects: []
-        }
-    })
+const CareerRelated = () => {
+    const { control } = useFormContext()
 
     // Watch section types to handle conditioning and side-effects
-    const selectedSectionTypes = useWatch({ control, name: 'sectionTypes' }) || []
-
-    // Load saved data or props on mount
-    useEffect(() => {
-        const storageKey = `career-related-${id || 'new'}`
-        const savedData = localStorage.getItem(storageKey)
-
-        if (savedData) {
-            reset(JSON.parse(savedData))
-        } else if (careerData) {
-            reset({
-                sectionTypes: careerData.sectionTypes || [],
-                relatedBlogs: careerData.relatedBlogs || [],
-                relatedServices: careerData.relatedServices || [],
-                relatedParts: careerData.relatedParts || [],
-                relatedProjects: careerData.relatedProjects || []
-            })
-        }
-    }, [careerData, reset, id])
-
-    const onSubmit = (data: RelatedContentData) => {
-        const storageKey = `career-related-${id || 'new'}`
-        localStorage.setItem(storageKey, JSON.stringify(data))
-        console.log('Submitted Career Related Content:', data)
-        alert('Career Related Content Saved!')
-    }
+    const selectedSectionTypes = useWatch({ control, name: 'related_content.sectionTypes' }) || []
 
     const availableOptions = [
         { value: 'blogs', label: 'Related Blogs' },
@@ -116,229 +68,208 @@ const CareerRelated = ({ careerData, id }: { careerData?: any; id?: string }) =>
         <Card>
             <CardHeader title='Related Content Configuration' subheader='Choose up to 2 sections to display' />
             <CardContent>
-                <form onSubmit={handleSubmit(onSubmit)}>
-                    <Grid container spacing={5}>
-                        <Grid size={{ xs: 12 }}>
+                <Grid container spacing={5}>
+                    <Grid size={{ xs: 12 }}>
+                        <Controller
+                            name='related_content.sectionTypes'
+                            control={control}
+                            render={({ field }) => (
+                                <FormControl fullWidth error={selectedSectionTypes.length > 2}>
+                                    <InputLabel id='career-section-types-label'>Select Related Sections (Max 2)</InputLabel>
+                                    <Select
+                                        {...field}
+                                        labelId='career-section-types-label'
+                                        multiple
+                                        input={<OutlinedInput label='Select Related Sections (Max 2)' />}
+                                        renderValue={(selected) => (
+                                            <div className='flex flex-wrap gap-2'>
+                                                {(selected as string[]).map((value) => (
+                                                    <Chip
+                                                        key={value}
+                                                        label={availableOptions.find(opt => opt.value === value)?.label || value}
+                                                        size='small'
+                                                        onDelete={() => {
+                                                            const newValue = (selected as string[]).filter((item) => item !== value)
+                                                            field.onChange(newValue)
+                                                        }}
+                                                        onMouseDown={(event) => {
+                                                            event.stopPropagation()
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                        onChange={(event) => {
+                                            const {
+                                                target: { value }
+                                            } = event
+                                            const newValue = typeof value === 'string' ? value.split(',') : value
+                                            if (newValue.length <= 2) {
+                                                field.onChange(newValue)
+                                            }
+                                        }}
+                                    >
+                                        {availableOptions.map((option) => (
+                                            <MenuItem key={option.value} value={option.value} disabled={selectedSectionTypes.length >= 2 && !selectedSectionTypes.includes(option.value)}>
+                                                {option.label}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                    {selectedSectionTypes.length > 2 && <FormHelperText>You can only select up to 2 sections.</FormHelperText>}
+                                </FormControl>
+                            )}
+                        />
+                    </Grid>
+
+                    {selectedSectionTypes.includes('blogs') && (
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <Controller
-                                name='sectionTypes'
+                                name='related_content.relatedBlogs'
                                 control={control}
                                 render={({ field }) => (
-                                    <FormControl fullWidth error={selectedSectionTypes.length > 2}>
-                                        <InputLabel id='career-section-types-label'>Select Related Sections (Max 2)</InputLabel>
+                                    <FormControl fullWidth>
+                                        <InputLabel id='related-blogs-label'>Related Blogs</InputLabel>
                                         <Select
                                             {...field}
-                                            labelId='career-section-types-label'
+                                            labelId='related-blogs-label'
                                             multiple
-                                            input={<OutlinedInput label='Select Related Sections (Max 2)' />}
+                                            input={<OutlinedInput label='Related Blogs' />}
                                             renderValue={(selected) => (
                                                 <div className='flex flex-wrap gap-2'>
                                                     {(selected as string[]).map((value) => (
-                                                        <Chip
-                                                            key={value}
-                                                            label={availableOptions.find(opt => opt.value === value)?.label || value}
-                                                            size='small'
-                                                            onDelete={() => {
-                                                                const newValue = (selected as string[]).filter((item) => item !== value)
-                                                                field.onChange(newValue)
-                                                            }}
-                                                            onMouseDown={(event) => {
-                                                                event.stopPropagation()
-                                                            }}
-                                                        />
+                                                        <Chip key={value} label={MOCK_BLOGS.find(b => b.id === value)?.title} size='small' onDelete={() => {
+                                                            const newValue = (selected as string[]).filter((item) => item !== value)
+                                                            field.onChange(newValue)
+                                                        }} onMouseDown={(e) => e.stopPropagation()} />
                                                     ))}
                                                 </div>
                                             )}
-                                            onChange={(e) => {
-                                                const value = e.target.value as string[]
-                                                if (value.length <= 2) {
-                                                    field.onChange(value)
-                                                }
-                                            }}
                                         >
-                                            {availableOptions.map((option) => (
-                                                <MenuItem
-                                                    key={option.value}
-                                                    value={option.value}
-                                                    disabled={selectedSectionTypes.length >= 2 && !selectedSectionTypes.includes(option.value as RelatedSectionType)}
-                                                >
-                                                    {option.label}
+                                            {MOCK_BLOGS.map((blog) => (
+                                                <MenuItem key={blog.id} value={blog.id}>
+                                                    {blog.title}
                                                 </MenuItem>
                                             ))}
                                         </Select>
-                                        {selectedSectionTypes.length >= 2 && (
-                                            <FormHelperText>Maximum 2 sections selected</FormHelperText>
-                                        )}
                                     </FormControl>
                                 )}
                             />
                         </Grid>
+                    )}
 
-                        {selectedSectionTypes.includes('blogs') && (
-                            <Grid size={{ xs: 12 }}>
-                                <Controller
-                                    name='relatedBlogs'
-                                    control={control}
-                                    render={({ field }) => (
-                                        <FormControl fullWidth>
-                                            <InputLabel id='career-related-blogs-label'>Select Related Blogs</InputLabel>
-                                            <Select
-                                                {...field}
-                                                labelId='career-related-blogs-label'
-                                                multiple
-                                                input={<OutlinedInput label='Select Related Blogs' />}
-                                                renderValue={(selected) => (
-                                                    <div className='flex flex-wrap gap-2'>
-                                                        {(selected as string[]).map((value) => (
-                                                            <Chip
-                                                                key={value}
-                                                                label={MOCK_BLOGS.find(b => b.id === value)?.title || value}
-                                                                size='small'
-                                                                onDelete={() => {
-                                                                    const newValue = (selected as string[]).filter((item) => item !== value)
-                                                                    field.onChange(newValue)
-                                                                }}
-                                                                onMouseDown={(event) => event.stopPropagation()}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            >
-                                                {MOCK_BLOGS.map((item) => (
-                                                    <MenuItem key={item.id} value={item.id}>{item.title}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                    )}
-                                />
-                            </Grid>
-                        )}
-
-                        {selectedSectionTypes.includes('services') && (
-                            <Grid size={{ xs: 12 }}>
-                                <Controller
-                                    name='relatedServices'
-                                    control={control}
-                                    render={({ field }) => (
-                                        <FormControl fullWidth>
-                                            <InputLabel id='career-related-services-label'>Select Related Services</InputLabel>
-                                            <Select
-                                                {...field}
-                                                labelId='career-related-services-label'
-                                                multiple
-                                                input={<OutlinedInput label='Select Related Services' />}
-                                                renderValue={(selected) => (
-                                                    <div className='flex flex-wrap gap-2'>
-                                                        {(selected as string[]).map((value) => (
-                                                            <Chip
-                                                                key={value}
-                                                                label={MOCK_SERVICES.find(s => s.id === value)?.title || value}
-                                                                size='small'
-                                                                onDelete={() => {
-                                                                    const newValue = (selected as string[]).filter((item) => item !== value)
-                                                                    field.onChange(newValue)
-                                                                }}
-                                                                onMouseDown={(event) => event.stopPropagation()}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            >
-                                                {MOCK_SERVICES.map((item) => (
-                                                    <MenuItem key={item.id} value={item.id}>{item.title}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                    )}
-                                />
-                            </Grid>
-                        )}
-
-                        {selectedSectionTypes.includes('parts') && (
-                            <Grid size={{ xs: 12 }}>
-                                <Controller
-                                    name='relatedParts'
-                                    control={control}
-                                    render={({ field }) => (
-                                        <FormControl fullWidth>
-                                            <InputLabel id='career-related-parts-label'>Select Related Parts</InputLabel>
-                                            <Select
-                                                {...field}
-                                                labelId='career-related-parts-label'
-                                                multiple
-                                                input={<OutlinedInput label='Select Related Parts' />}
-                                                renderValue={(selected) => (
-                                                    <div className='flex flex-wrap gap-2'>
-                                                        {(selected as string[]).map((value) => (
-                                                            <Chip
-                                                                key={value}
-                                                                label={MOCK_PARTS.find(p => p.id === value)?.title || value}
-                                                                size='small'
-                                                                onDelete={() => {
-                                                                    const newValue = (selected as string[]).filter((item) => item !== value)
-                                                                    field.onChange(newValue)
-                                                                }}
-                                                                onMouseDown={(event) => event.stopPropagation()}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            >
-                                                {MOCK_PARTS.map((item) => (
-                                                    <MenuItem key={item.id} value={item.id}>{item.title}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                    )}
-                                />
-                            </Grid>
-                        )}
-
-                        {selectedSectionTypes.includes('projects') && (
-                            <Grid size={{ xs: 12 }}>
-                                <Controller
-                                    name='relatedProjects'
-                                    control={control}
-                                    render={({ field }) => (
-                                        <FormControl fullWidth>
-                                            <InputLabel id='career-related-projects-label'>Select Related Projects</InputLabel>
-                                            <Select
-                                                {...field}
-                                                labelId='career-related-projects-label'
-                                                multiple
-                                                input={<OutlinedInput label='Select Related Projects' />}
-                                                renderValue={(selected) => (
-                                                    <div className='flex flex-wrap gap-2'>
-                                                        {(selected as string[]).map((value) => (
-                                                            <Chip
-                                                                key={value}
-                                                                label={MOCK_PROJECTS.find(p => p.id === value)?.title || value}
-                                                                size='small'
-                                                                onDelete={() => {
-                                                                    const newValue = (selected as string[]).filter((item) => item !== value)
-                                                                    field.onChange(newValue)
-                                                                }}
-                                                                onMouseDown={(event) => event.stopPropagation()}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            >
-                                                {MOCK_PROJECTS.map((item) => (
-                                                    <MenuItem key={item.id} value={item.id}>{item.title}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                    )}
-                                />
-                            </Grid>
-                        )}
-                        <Grid size={{ xs: 12 }} className='flex justify-end'>
-                            <Button variant='contained' type='submit'>
-                                Save Related Content
-                            </Button>
+                    {selectedSectionTypes.includes('services') && (
+                        <Grid size={{ xs: 12, md: 6 }}>
+                            <Controller
+                                name='related_content.relatedServices'
+                                control={control}
+                                render={({ field }) => (
+                                    <FormControl fullWidth>
+                                        <InputLabel id='related-services-label'>Related Services</InputLabel>
+                                        <Select
+                                            {...field}
+                                            labelId='related-services-label'
+                                            multiple
+                                            input={<OutlinedInput label='Related Services' />}
+                                            renderValue={(selected) => (
+                                                <div className='flex flex-wrap gap-2'>
+                                                    {(selected as string[]).map((value) => (
+                                                        <Chip key={value} label={MOCK_SERVICES.find(s => s.id === value)?.title} size='small' onDelete={() => {
+                                                            const newValue = (selected as string[]).filter((item) => item !== value)
+                                                            field.onChange(newValue)
+                                                        }} onMouseDown={(e) => e.stopPropagation()} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        >
+                                            {MOCK_SERVICES.map((service) => (
+                                                <MenuItem key={service.id} value={service.id}>
+                                                    {service.title}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                )}
+                            />
                         </Grid>
+                    )}
+
+                    {selectedSectionTypes.includes('parts') && (
+                        <Grid size={{ xs: 12, md: 6 }}>
+                            <Controller
+                                name='related_content.relatedParts'
+                                control={control}
+                                render={({ field }) => (
+                                    <FormControl fullWidth>
+                                        <InputLabel id='related-parts-label'>Related Parts</InputLabel>
+                                        <Select
+                                            {...field}
+                                            labelId='related-parts-label'
+                                            multiple
+                                            input={<OutlinedInput label='Related Parts' />}
+                                            renderValue={(selected) => (
+                                                <div className='flex flex-wrap gap-2'>
+                                                    {(selected as string[]).map((value) => (
+                                                        <Chip key={value} label={MOCK_PARTS.find(p => p.id === value)?.title} size='small' onDelete={() => {
+                                                            const newValue = (selected as string[]).filter((item) => item !== value)
+                                                            field.onChange(newValue)
+                                                        }} onMouseDown={(e) => e.stopPropagation()} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        >
+                                            {MOCK_PARTS.map((part) => (
+                                                <MenuItem key={part.id} value={part.id}>
+                                                    {part.title}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                )}
+                            />
+                        </Grid>
+                    )}
+
+                    {selectedSectionTypes.includes('projects') && (
+                        <Grid size={{ xs: 12, md: 6 }}>
+                            <Controller
+                                name='related_content.relatedProjects'
+                                control={control}
+                                render={({ field }) => (
+                                    <FormControl fullWidth>
+                                        <InputLabel id='related-projects-label'>Related Projects</InputLabel>
+                                        <Select
+                                            {...field}
+                                            labelId='related-projects-label'
+                                            multiple
+                                            input={<OutlinedInput label='Related Projects' />}
+                                            renderValue={(selected) => (
+                                                <div className='flex flex-wrap gap-2'>
+                                                    {(selected as string[]).map((value) => (
+                                                        <Chip key={value} label={MOCK_PROJECTS.find(pr => pr.id === value)?.title} size='small' onDelete={() => {
+                                                            const newValue = (selected as string[]).filter((item) => item !== value)
+                                                            field.onChange(newValue)
+                                                        }} onMouseDown={(e) => e.stopPropagation()} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        >
+                                            {MOCK_PROJECTS.map((project) => (
+                                                <MenuItem key={project.id} value={project.id}>
+                                                    {project.title}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                )}
+                            />
+                        </Grid>
+                    )}
+                    <Grid size={{ xs: 12 }} className='flex justify-end'>
+                        <Button variant='contained' type='submit'>
+                            Save Related Content
+                        </Button>
                     </Grid>
-                </form>
+                </Grid>
             </CardContent>
         </Card>
     )

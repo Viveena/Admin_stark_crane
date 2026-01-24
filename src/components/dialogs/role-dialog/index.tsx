@@ -59,7 +59,10 @@ const RoleDialog = ({ open, setOpen, title }: RoleDialogProps) => {
         })
         if (res.ok) {
           const data = await res.json()
-          setPages(data.pages || [])
+          const filteredPages = (data.pages || []).filter((p: PageType) =>
+            !['Privacy Policy', 'Terms of Service'].includes(p.title)
+          )
+          setPages(filteredPages)
 
           // Initialize permissions state
           const initialPermissions: PermissionType = {}

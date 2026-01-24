@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { createUser, getUsers, toggleUserStatus, getMe } = require('../controllers/userController');
+const { createUser, getUsers, toggleUserStatus, getMe, deleteUser, getUser } = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminOnlyMiddleware = require('../middlewares/adminOnlyMiddleware');
 
@@ -81,6 +81,12 @@ router.post(
 router.get('/', getUsers);
 
 /**
+ * GET /api/users/:id
+ * Get single user by ID
+ */
+router.get('/:id', getUser);
+
+/**
  * PATCH /api/users/:id/status
  * Toggle user status
  */
@@ -98,5 +104,11 @@ router.patch(
   ],
   toggleUserStatus
 );
+
+/**
+ * DELETE /api/users/:id
+ * Delete a user
+ */
+router.delete('/:id', deleteUser);
 
 module.exports = router;

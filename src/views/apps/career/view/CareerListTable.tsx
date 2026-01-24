@@ -42,6 +42,8 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 // Type Imports
 import type { ThemeColor } from '@core/types'
 import type { Locale } from '@configs/i18n'
+// Using slightly manipulated CareerType to match what we expect from DB or adapter
+// Usually types are shared but for quick fix we use 'any' or map it
 import type { CareerType } from '@/types/apps/ecommerceTypes'
 
 // Component Imports
@@ -143,9 +145,51 @@ const columnHelper = createColumnHelper<CareerWithActionsType>()
 const CareerListTable = ({ careerData }: { careerData?: CareerType[] }) => {
   // States
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(...[careerData])
-  const [filteredData, setFilteredData] = useState(data)
+
+  // NOTE: If careerData is null/undefined, we initialize empty and fetch
+  const [data, setData] = useState<CareerType[]>(careerData || [])
+  const [filteredData, setFilteredData] = useState<CareerType[]>(data)
   const [globalFilter, setGlobalFilter] = useState('')
+
+  // Fetch data if not provided (assume client side fetch from API)
+  useEffect(() => {
+    if (!careerData) {
+      const fetchData = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch('http://localhost:5000/api/careers', {
+            headers: {
+              'x-auth-token': token || ''
+            }
+          });
+          if (res.ok) {
+            const result = await res.json();
+            if (result.careers) {
+              // Map DB fields to Frontend fields if needed
+              // DB: job_title, Frontend: jobTitle
+              const mapped = result.careers.map((c: any) => ({
+                id: c.id,
+                jobTitle: c.job_title,
+                location: c.location,
+                salary: c.salary,
+                category: c.category || 'Engineering', // Default/Fallback
+                jobType: c.job_type,
+                status: c.status
+              }));
+              setData(mapped);
+              setFilteredData(mapped);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch careers", err);
+        }
+      };
+      fetchData();
+    } else {
+      setData(careerData)
+      setFilteredData(careerData)
+    }
+  }, [careerData])
 
   // Hooks
   const { lang: locale } = useParams()
@@ -182,13 +226,14 @@ const CareerListTable = ({ careerData }: { careerData?: CareerType[] }) => {
         header: 'Category',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <CustomAvatar skin='light' color={careerCategoryObj[row.original.category]?.color} size={30}>
-              <i className={classnames(careerCategoryObj[row.original.category]?.icon, 'text-lg')} />
+            <CustomAvatar skin='light' color={careerCategoryObj[row.original.category]?.color || 'primary'} size={30}>
+              <i className={classnames(careerCategoryObj[row.original.category]?.icon || 'ri-briefcase-line', 'text-lg')} />
             </CustomAvatar>
             <Typography color='text.primary'>{row.original.category}</Typography>
           </div>
         )
       }),
+      // ... rest of columns same
       columnHelper.accessor('jobType', {
         header: 'Job Type',
         cell: ({ row }) => <Typography>{row.original.jobType}</Typography>
@@ -200,20 +245,24 @@ const CareerListTable = ({ careerData }: { careerData?: CareerType[] }) => {
           return (
             <div className='flex items-center gap-3'>
               <Chip
-                label={careerStatusObj[status]?.title}
+                label={careerStatusObj[status]?.title || status}
                 variant='tonal'
-                color={careerStatusObj[status]?.color}
+                color={careerStatusObj[status]?.color || 'default'}
                 size='small'
               />
               <Switch checked={status === 'Active'} onChange={() => {
                 // In a real app we would make an API call here.
                 // For now, let's just update local state to reflect the toggle
+                // TODO: Implement API toggle
                 const updatedData = data?.map(item =>
                   item.id === row.original.id
                     ? { ...item, status: item.status === 'Active' ? 'Inactive' : 'Active' }
                     : item
                 )
                 setData(updatedData)
+                // setFilteredData(updatedData); // Filtered data should react to data change usually, but we set it explicitly here.
+                // Actually we should trigger effect or just set both.
+                setFilteredData(updatedData);
               }} />
             </div>
           )
@@ -233,7 +282,22 @@ const CareerListTable = ({ careerData }: { careerData?: CareerType[] }) => {
                 {
                   text: 'Delete',
                   icon: 'ri-delete-bin-7-line',
-                  menuItemProps: { onClick: () => setData(data?.filter(career => career.id !== row.original.id)) }
+                  menuItemProps: {
+                    onClick: async () => {
+                      // Implement Delete API call
+                      try {
+                        await fetch(`http://localhost:5000/api/careers/${row.original.id}`, {
+                          method: 'DELETE',
+                          headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+                        });
+                        const newData = data?.filter(career => career.id !== row.original.id);
+                        setData(newData);
+                        setFilteredData(newData);
+                      } catch (e) {
+                        console.error("Delete failed", e);
+                      }
+                    }
+                  }
                 }
               ]}
             />

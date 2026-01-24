@@ -23,6 +23,7 @@ import { useDropzone } from 'react-dropzone'
 import TextEditor from '@components/TextEditor'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AppReactDropzone from '@/libs/styles/AppReactDropzone'
+import { usePageSection } from '@/hooks/usePageSection'
 
 // Styled Dropzone
 const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
@@ -36,6 +37,12 @@ const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
 }))
 
 const OurHistorySection = () => {
+    // Hook
+    const { data: sectionData, loading, error, saveSection, uploadImage } = usePageSection({
+        pageKey: 'about',
+        sectionKey: 'our_history'
+    });
+
     // Local Form
     const { control, handleSubmit, reset, setValue } = useForm({
         defaultValues: {
@@ -45,15 +52,20 @@ const OurHistorySection = () => {
     })
 
     const [files, setFiles] = useState<File[]>([])
+    const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null)
 
     // Load data
     useEffect(() => {
-        const savedData = localStorage.getItem('our_history_section_data')
-        if (savedData) {
-            const parsed = JSON.parse(savedData)
-            reset({ description: parsed.description || '', image: null })
+        if (sectionData) {
+            reset({
+                description: sectionData.description || '',
+                image: sectionData.image || null
+            })
+            if (sectionData.image) {
+                setSavedImageUrl(sectionData.image)
+            }
         }
-    }, [reset])
+    }, [sectionData, reset])
 
     const { getRootProps, getInputProps } = useDropzone({
         maxFiles: 1,
@@ -69,10 +81,24 @@ const OurHistorySection = () => {
         }
     })
 
-    const onSubmit = (data: any) => {
-        localStorage.setItem('our_history_section_data', JSON.stringify({ description: data.description }))
-        console.log('Our History Section Saved:', data)
-        alert('Our History Section Saved')
+    const onSubmit = async (data: any) => {
+        try {
+            let imageUrl = savedImageUrl;
+            if (files.length > 0) {
+                imageUrl = await uploadImage(files[0])
+            }
+
+            const dataToSave = {
+                description: data.description,
+                image: imageUrl
+            }
+
+            await saveSection(dataToSave)
+            alert('Our History Section Saved to Database')
+        } catch (err) {
+            console.error(err)
+            alert('Error saving Our History')
+        }
     }
 
     return (
@@ -81,8 +107,8 @@ const OurHistorySection = () => {
                 <CardHeader
                     title='Our History Section'
                     action={
-                        <Button variant='contained' type='submit'>
-                            Save
+                        <Button variant='contained' type='submit' disabled={loading}>
+                            {loading ? 'Saving...' : 'Save'}
                         </Button>
                     }
                 />
@@ -104,13 +130,17 @@ const OurHistorySection = () => {
                             <Dropzone>
                                 <div {...getRootProps({ className: 'dropzone' })}>
                                     <input {...getInputProps()} />
-                                    {files.length > 0 ? (
+                                    {files.length > 0 || savedImageUrl ? (
                                         <div className='flex items-center justify-between'>
                                             <div className='flex items-center'>
-                                                <img width={38} height={38} alt={files[0].name} src={URL.createObjectURL(files[0])} className='mr-2' />
-                                                <Typography variant='body2'>{files[0].name}</Typography>
+                                                {files.length > 0 ? (
+                                                    <img width={38} height={38} alt={files[0].name} src={URL.createObjectURL(files[0])} className='mr-2' />
+                                                ) : (
+                                                    <img width={38} height={38} alt="Saved" src={savedImageUrl!} className='mr-2' />
+                                                )}
+                                                <Typography variant='body2'>{files.length > 0 ? files[0].name : 'Saved Image'}</Typography>
                                             </div>
-                                            <IconButton onClick={() => { setFiles([]); setValue('image', null) }}>
+                                            <IconButton onClick={() => { setFiles([]); setSavedImageUrl(null); setValue('image', null) }}>
                                                 <i className='ri-close-line' />
                                             </IconButton>
                                         </div>

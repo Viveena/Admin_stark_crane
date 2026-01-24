@@ -36,7 +36,7 @@ type FormData = {
 const ProductLandingSettings = () => {
     // Hook Integration
     const { data: sectionData, loading, error, meta, saveSection, uploadImage } = usePageSection({
-        pageKey: 'product',
+        pageKey: 'products',
         sectionKey: 'landing'
     });
 

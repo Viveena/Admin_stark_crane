@@ -3,30 +3,33 @@ import Grid from '@mui/material/Grid2'
 
 // Type Imports
 import type { UserDataType } from '@components/card-statistics/HorizontalWithSubtitle'
+import type { UsersType } from '@/types/apps/userTypes'
 
 // Component Imports
 import HorizontalWithSubtitle from '@components/card-statistics/HorizontalWithSubtitle'
 
-// Vars
-const data: UserDataType[] = [
-  
-  {
-    title: 'Active Users',
-    stats: '19,860',
-    avatarIcon: 'ri-user-follow-line',
-    avatarColor: 'success',
-   
-  },
-  {
-    title: 'Pending Users',
-    stats: '237',
-    avatarIcon: 'ri-user-search-line',
-    avatarColor: 'warning',
-   
-  }
-]
+const UserListCards = ({ userData }: { userData: UsersType[] }) => {
 
-const UserListCards = () => {
+  const activeCount = userData.filter(u => u.status === 'active').length
+  const pendingCount = userData.filter(u => u.status === 'pending').length
+
+  const data: UserDataType[] = [
+    {
+      title: 'Active Users',
+      stats: activeCount.toLocaleString(),
+      avatarIcon: 'ri-user-follow-line',
+      avatarColor: 'success',
+
+    },
+    {
+      title: 'Pending Users',
+      stats: pendingCount.toLocaleString(),
+      avatarIcon: 'ri-user-search-line',
+      avatarColor: 'warning',
+
+    }
+  ]
+
   return (
     <Grid container spacing={6}>
       {data.map((item, i) => (

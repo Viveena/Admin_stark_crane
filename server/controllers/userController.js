@@ -59,7 +59,7 @@ exports.createUser = async (req, res) => {
 
     // Fetch the created user with role name
     const [newUsers] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
+      `SELECT u.id, u.full_name as fullName, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        WHERE u.id = ?`,
@@ -87,7 +87,7 @@ exports.createUser = async (req, res) => {
 exports.getUsers = async (req, res) => {
   try {
     const [users] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, u.updated_at, r.name as role
+      `SELECT u.id, u.full_name as fullName, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, u.updated_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        ORDER BY u.created_at DESC`
@@ -158,7 +158,7 @@ exports.toggleUserStatus = async (req, res) => {
 
     // Fetch updated user with role name
     const [updatedUsers] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.updated_at, r.name as role
+      `SELECT u.id, u.full_name as fullName, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.updated_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        WHERE u.id = ?`,
@@ -176,6 +176,38 @@ exports.toggleUserStatus = async (req, res) => {
 };
 
 /**
+ * Get single user by ID
+ * GET /api/users/:id
+ */
+exports.getUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Fetch user details with role name
+    const [users] = await db.query(
+      `SELECT u.id, u.full_name as fullName, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    const user = users[0];
+
+    res.status(200).json({
+      user,
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ msg: 'Server error while fetching user' });
+  }
+};
+
+/**
  * Get current user details and permissions
  * GET /api/users/me
  */
@@ -185,7 +217,7 @@ exports.getMe = async (req, res) => {
 
     // Fetch user details with role name
     const [users] = await db.query(
-      `SELECT u.id, u.full_name, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
+      `SELECT u.id, u.full_name as fullName, u.username, u.email, u.role_id, u.status, u.company, u.country, u.contact, u.created_by, u.created_at, r.name as role
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        WHERE u.id = ?`,
@@ -220,5 +252,48 @@ exports.getMe = async (req, res) => {
   } catch (error) {
     console.error('Error fetching current user:', error);
     res.status(500).json({ msg: 'Server error while fetching current user' });
+  }
+};
+
+/**
+ * Delete a user
+ * DELETE /api/users/:id
+ */
+exports.deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Validate userId
+    if (!userId) {
+      return res.status(400).json({ msg: 'User ID is required' });
+    }
+
+    // Check if user exists
+    const [existing] = await db.query('SELECT id, full_name, role_id FROM users WHERE id = ?', [userId]);
+    if (existing.length === 0) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    // Prevent deleting self
+    if (parseInt(userId) === req.user.id) {
+      return res.status(400).json({ msg: 'You cannot delete yourself' });
+    }
+
+    // Check role of the user being deleted
+    const [roles] = await db.query('SELECT name FROM roles WHERE id = ?', [existing[0].role_id]);
+    const roleName = roles.length > 0 ? roles[0].name.toUpperCase() : '';
+
+    // Prevent deleting SUPER_ADMIN (unless you are one? Assuming even SUPER_ADMIN shouldn't delete other SUPER_ADMINs easily, or just hardcode protection)
+    if (roleName === 'SUPER_ADMIN') {
+      return res.status(403).json({ msg: 'Cannot delete SUPER_ADMIN users' });
+    }
+
+    // Delete user
+    await db.query('DELETE FROM users WHERE id = ?', [userId]);
+
+    res.status(200).json({ msg: 'User deleted successfully', userId });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ msg: 'Server error while deleting user' });
   }
 };

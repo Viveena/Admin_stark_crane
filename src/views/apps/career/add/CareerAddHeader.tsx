@@ -51,7 +51,7 @@ const CareerAddHeader = ({ isEdit }: { isEdit?: boolean }) => {
           <Button variant='contained' onClick={() => setJobTypeDrawerOpen(true)}>
             Add Job Type
           </Button>
-          <Button variant='contained'>{isEdit ? 'Update' : 'Publish'}</Button>
+          <Button variant='contained' type="submit">{isEdit ? 'Update' : 'Publish'}</Button>
         </div>
       </div>
       <AddCategoryDrawer open={categoryDrawerOpen} handleClose={() => setCategoryDrawerOpen(false)} />

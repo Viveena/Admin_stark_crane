@@ -35,6 +35,7 @@ import type { FaqType } from '@/types/apps/ecommerceTypes'
 
 // Component Imports
 import FaqDrawer from './FaqDrawer'
+// import { usePageSection } from '@/hooks/usePageSection'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -42,13 +43,23 @@ import tableStyles from '@core/styles/table.module.css'
 // Column Definitions
 const columnHelper = createColumnHelper<FaqType>()
 
-const FaqListTable = ({ faqData }: { faqData?: FaqType[] }) => {
+const FaqListTable = ({ data, saveSection }: { data: FaqType[], saveSection: (data: any) => Promise<any> }) => {
     // States
-    const [data, setData] = useState(faqData || [])
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editData, setEditData] = useState<FaqType | null>(null)
     const [viewData, setViewData] = useState<FaqType | null>(null)
     const [detailsOpen, setDetailsOpen] = useState(false)
+
+    // Data is now controlled by parent
+
+    const handleUpdateData = async (newData: FaqType[]) => {
+        try {
+            await saveSection({ faqs: newData })
+        } catch (error) {
+            console.error('Failed to save FAQs', error)
+            alert('Failed to save changes to database')
+        }
+    }
 
     const handleEdit = (faq: FaqType) => {
         setEditData(faq)
@@ -66,7 +77,8 @@ const FaqListTable = ({ faqData }: { faqData?: FaqType[] }) => {
     }
 
     const handleDelete = (id: number) => {
-        setData(data.filter(item => item.id !== id))
+        const newData = data.filter(item => item.id !== id)
+        handleUpdateData(newData)
     }
 
     const columns = useMemo<ColumnDef<FaqType, any>[]>(
@@ -215,7 +227,7 @@ const FaqListTable = ({ faqData }: { faqData?: FaqType[] }) => {
                 open={drawerOpen}
                 handleClose={() => setDrawerOpen(false)}
                 faqData={editData}
-                setData={setData}
+                setData={handleUpdateData}
                 data={data}
             />
 

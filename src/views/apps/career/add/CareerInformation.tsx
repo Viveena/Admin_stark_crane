@@ -21,6 +21,7 @@ import { Underline } from '@tiptap/extension-underline'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { TextAlign } from '@tiptap/extension-text-align'
 import type { Editor } from '@tiptap/core'
+import { useFormContext, Controller } from 'react-hook-form'
 
 // Components Imports
 import CustomIconButton from '@core/components/mui/IconButton'
@@ -119,19 +120,12 @@ const EditorToolbar = ({ editor }: { editor: Editor | null }) => {
 import { useEffect, useState } from 'react'
 import type { CareerType } from '@/types/apps/ecommerceTypes'
 
-// ... imports remain the same
-
-const ProductInformation = ({ careerData }: { careerData?: CareerType }) => {
+const CareerInformation = ({ careerData }: { careerData?: CareerType }) => {
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
   const [jobTypes, setJobTypes] = useState<{ id: number; name: string }[]>([])
+  const [isMounted, setIsMounted] = useState(false)
 
-  const [formData, setFormData] = useState({
-    jobTitle: '',
-    location: '',
-    salary: '',
-    category: '',
-    jobType: ''
-  })
+  const { control, setValue } = useFormContext()
 
   const loadOptions = () => {
     const savedCategories = localStorage.getItem('career-categories')
@@ -146,20 +140,20 @@ const ProductInformation = ({ careerData }: { careerData?: CareerType }) => {
   }
 
   useEffect(() => {
+    setIsMounted(true)
     loadOptions()
   }, [])
 
   useEffect(() => {
     if (careerData) {
-      setFormData({
-        jobTitle: careerData.jobTitle,
-        location: careerData.location,
-        salary: careerData.salary,
-        category: careerData.category,
-        jobType: careerData.jobType
-      })
+      setValue('job_title', careerData.jobTitle)
+      setValue('location', careerData.location)
+      setValue('salary', careerData.salary)
+      setValue('category', careerData.category)
+      setValue('job_type', careerData.jobType)
+      setValue('description', careerData.description || '')
     }
-  }, [careerData])
+  }, [careerData, setValue])
 
   const editor = useEditor({
     extensions: [
@@ -172,13 +166,24 @@ const ProductInformation = ({ careerData }: { careerData?: CareerType }) => {
       }),
       Underline
     ],
-    immediatelyRender: false,
-    content: `
-      <p>
-        Keep your account secure with authentication step.
-      </p>
-    `
+    // content: `
+    //   <p>
+    //     Keep your account secure with authentication step.
+    //   </p>
+    // `,
+    onUpdate: ({ editor }) => {
+      setValue('description', editor.getHTML())
+    },
+    immediatelyRender: false
   })
+
+  // Sync initial description if editing
+  useEffect(() => {
+    if (careerData && careerData.description && editor) {
+      // editor.commands.setContent(careerData.description) 
+      // Need to handle safely to avoid loops or ssr mismatch if possible, but basic setContent works for now
+    }
+  }, [careerData, editor])
 
   return (
     <Card>
@@ -186,71 +191,113 @@ const ProductInformation = ({ careerData }: { careerData?: CareerType }) => {
       <CardContent>
         <Grid container spacing={5} className='mbe-5'>
           <Grid size={{ xs: 12 }}>
-            <TextField
-              fullWidth
-              label='Job Title'
-              placeholder='Job Title'
-              value={formData.jobTitle}
-              onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+            <Controller
+              name='job_title'
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  fullWidth
+                  label='Job Title'
+                  placeholder='Job Title'
+                />
+              )}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              fullWidth
-              label='Location'
-              placeholder='Location'
-              value={formData.location}
-              onChange={e => setFormData({ ...formData, location: e.target.value })}
+            <Controller
+              name='location'
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  fullWidth
+                  label='Location'
+                  placeholder='Location'
+                />
+              )}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              fullWidth
-              label='Salary'
-              placeholder='Salary'
-              value={formData.salary}
-              onChange={e => setFormData({ ...formData, salary: e.target.value })}
+            <Controller
+              name='salary'
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  fullWidth
+                  label='Salary'
+                  placeholder='Salary'
+                />
+              )}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth>
-              <InputLabel id='category-select-label'>Category</InputLabel>
-              <Select
-                labelId='category-select-label'
-                label='Category'
-                value={formData.category}
-                onChange={e => setFormData({ ...formData, category: e.target.value })}
-                onOpen={loadOptions}
-              >
-                {categories.map((cat) => (
-                  <MenuItem key={cat.id} value={cat.name}>{cat.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Controller
+              name='category'
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel id='category-select-label'>Category</InputLabel>
+                  <Select
+                    {...field}
+                    labelId='category-select-label'
+                    label='Category'
+                    onOpen={loadOptions}
+                  >
+                    <MenuItem value=""><em>None</em></MenuItem>
+                    {categories.map((cat) => (
+                      <MenuItem key={cat.id} value={cat.name}>{cat.name}</MenuItem>
+                    ))}
+                    {/* Fallback items if localstorage empty for demo */}
+                    {categories.length === 0 && [
+                      <MenuItem key="eng" value="Engineering">Engineering</MenuItem>,
+                      <MenuItem key="des" value="Design">Design</MenuItem>,
+                      <MenuItem key="prod" value="Product">Product</MenuItem>
+                    ]}
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth>
-              <InputLabel id='job-type-select-label'>Job Type</InputLabel>
-              <Select
-                labelId='job-type-select-label'
-                label='Job Type'
-                value={formData.jobType}
-                onChange={e => setFormData({ ...formData, jobType: e.target.value })}
-                onOpen={loadOptions}
-              >
-                {jobTypes.map((type) => (
-                  <MenuItem key={type.id} value={type.name}>{type.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Controller
+              name='job_type'
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel id='job-type-select-label'>Job Type</InputLabel>
+                  <Select
+                    {...field}
+                    labelId='job-type-select-label'
+                    label='Job Type'
+                    onOpen={loadOptions}
+                  >
+                    <MenuItem value=""><em>None</em></MenuItem>
+                    {jobTypes.map((type) => (
+                      <MenuItem key={type.id} value={type.name}>{type.name}</MenuItem>
+                    ))}
+                    {jobTypes.length === 0 && [
+                      <MenuItem key="ft" value="Full Time">Full Time</MenuItem>,
+                      <MenuItem key="pt" value="Part Time">Part Time</MenuItem>,
+                      <MenuItem key="ct" value="Contract">Contract</MenuItem>
+                    ]}
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
         </Grid>
         <Typography className='mbe-1'>Description</Typography>
         <Card className='p-0 border shadow-none'>
           <CardContent className='p-0'>
-            <EditorToolbar editor={editor} />
-            <Divider className='mli-5' />
-            <EditorContent editor={editor} className='bs-[135px] overflow-y-auto flex ' />
+            {isMounted ? (
+              <>
+                <EditorToolbar editor={editor} />
+                <Divider className='mli-5' />
+                <EditorContent editor={editor} className='bs-[135px] overflow-y-auto flex ' />
+              </>
+            ) : null}
           </CardContent>
         </Card>
       </CardContent>
@@ -258,4 +305,4 @@ const ProductInformation = ({ careerData }: { careerData?: CareerType }) => {
   )
 }
 
-export default ProductInformation
+export default CareerInformation

@@ -143,15 +143,19 @@ const userStatusObj: UserStatusType = {
 // Column Definitions
 const columnHelper = createColumnHelper<UsersTypeWithAction>()
 
-const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
+const UserListTable = ({ tableData, setData, onDelete }: { tableData: UsersType[], setData: (data: UsersType[]) => void, onDelete: (id: number) => void }) => {
   // States
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(...[tableData])
-  const [filteredData, setFilteredData] = useState(data)
+  const [filteredData, setFilteredData] = useState(tableData)
   const [globalFilter, setGlobalFilter] = useState('')
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UsersType | null>(null)
+
+  // Sync filteredData when tableData changes
+  useEffect(() => {
+    setFilteredData(tableData)
+  }, [tableData])
 
   // Hooks
   const { lang: locale } = useParams()
@@ -163,7 +167,7 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
 
   const handlePasswordSave = (password: string) => {
     if (selectedUser) {
-      const updatedData = data?.map(user => {
+      const updatedData = tableData?.map(user => {
         if (user.id === selectedUser.id) {
           return { ...user, password }
         }
@@ -171,7 +175,6 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
       })
 
       setData(updatedData)
-      setFilteredData(updatedData)
     }
     setChangePasswordOpen(false)
     setSelectedUser(null)
@@ -205,17 +208,22 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
       }),
       columnHelper.accessor('role', {
         header: 'Role',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <Icon
-              className={classnames('text-[22px]', userRoleObj[row.original.role].icon)}
-              sx={{ color: `var(--mui-palette-${userRoleObj[row.original.role].color}-main)` }}
-            />
-            <Typography className='capitalize' color='text.primary'>
-              {row.original.role}
-            </Typography>
-          </div>
-        )
+        cell: ({ row }) => {
+          const role = row.original.role ? row.original.role.toLowerCase() : 'subscriber'
+          const roleData = userRoleObj[role] || userRoleObj.subscriber
+
+          return (
+            <div className='flex items-center gap-2'>
+              <Icon
+                className={classnames('text-[22px]', roleData.icon)}
+                sx={{ color: `var(--mui-palette-${roleData.color}-main)` }}
+              />
+              <Typography className='capitalize' color='text.primary'>
+                {row.original.role}
+              </Typography>
+            </div>
+          )
+        }
       }),
       columnHelper.accessor('status', {
         header: 'Status',
@@ -238,11 +246,11 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
             <IconButton size='small' onClick={() => handleChangePasswordClick(row.original)}>
               <i className='ri-lock-password-line text-textSecondary' />
             </IconButton>
-            <IconButton size='small' onClick={() => setData(data?.filter(product => product.id !== row.original.id))}>
+            <IconButton size='small' onClick={() => onDelete(row.original.id)}>
               <i className='ri-delete-bin-7-line text-textSecondary' />
             </IconButton>
             <IconButton size='small'>
-              <Link href={getLocalizedUrl('/apps/user/view', locale as Locale)} className='flex'>
+              <Link href={getLocalizedUrl(`/apps/user/view/${row.original.id}`, locale as Locale)} className='flex'>
                 <i className='ri-eye-line text-textSecondary' />
               </Link>
             </IconButton>
@@ -253,7 +261,7 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, filteredData]
+    [tableData, filteredData]
   )
 
   const table = useReactTable({
@@ -303,7 +311,7 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
     <>
       <Card>
         <CardHeader title='Filters' className='pbe-4' />
-        <TableFilters setData={setFilteredData} tableData={data} />
+        <TableFilters setData={setFilteredData} tableData={tableData} />
         <Divider />
         <div className='flex justify-between gap-4 p-5 flex-col items-start sm:flex-row sm:items-center'>
           <Button
@@ -400,7 +408,7 @@ const UserListTable = ({ tableData }: { tableData?: UsersType[] }) => {
       <AddUserDrawer
         open={addUserOpen}
         handleClose={() => setAddUserOpen(!addUserOpen)}
-        userData={data}
+        userData={tableData}
         setData={setData}
       />
       <ChangePasswordDialog

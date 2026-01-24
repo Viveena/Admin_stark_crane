@@ -11,7 +11,7 @@ const db = require('../config/db');
  * router.get('/:pageKey', authMiddleware, dynamicCheckPermission('view'), controller.getPage);
  * router.put('/:pageKey', authMiddleware, dynamicCheckPermission('edit'), controller.updatePage);
  */
-const dynamicCheckPermission = (action) => {
+const dynamicCheckPermission = (action, explicitPageKey) => {
   return async (req, res, next) => {
     try {
       // Ensure user is authenticated (should be set by authMiddleware)
@@ -19,8 +19,8 @@ const dynamicCheckPermission = (action) => {
         return res.status(401).json({ msg: 'Authentication required' });
       }
 
-      // Extract pageKey from route params
-      const pageKey = req.params.pageKey;
+      // Extract pageKey from route params or use explicit passed key
+      const pageKey = explicitPageKey || req.params.pageKey;
       if (!pageKey) {
         return res.status(400).json({ msg: 'Page key is required' });
       }

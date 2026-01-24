@@ -13,7 +13,7 @@ async function createHistoryTables() {
         console.log('Connected to database for history tables migration...');
 
         const pages = [
-            'home', 'product', 'service', 'location', 'industry',
+            'home', 'products', 'service', 'location', 'industry',
             'parts', 'blogs', 'events', 'news', 'case_study',
             'about', 'career', 'contact', 'faq'
         ];

@@ -65,7 +65,11 @@ exports.createRole = async (req, res) => {
 exports.getRoles = async (req, res) => {
   try {
     const [roles] = await db.query(
-      'SELECT id, name, created_at, updated_at FROM roles ORDER BY id ASC'
+      `SELECT r.id, r.name, r.created_at, r.updated_at, COUNT(u.id) as totalUsers 
+       FROM roles r 
+       LEFT JOIN users u ON r.id = u.role_id 
+       GROUP BY r.id 
+       ORDER BY r.id ASC`
     );
 
     res.status(200).json({
@@ -75,6 +79,50 @@ exports.getRoles = async (req, res) => {
   } catch (error) {
     console.error('Error fetching roles:', error);
     res.status(500).json({ msg: 'Server error while fetching roles' });
+  }
+};
+
+/**
+ * Delete a role
+ * DELETE /api/roles/:id
+ */
+exports.deleteRole = async (req, res) => {
+  try {
+    const roleId = req.params.id;
+
+    // Validate roleId
+    if (!roleId) {
+      return res.status(400).json({ msg: 'Role ID is required' });
+    }
+
+    // Check if role exists
+    const [existing] = await db.query('SELECT id, name FROM roles WHERE id = ?', [roleId]);
+    if (existing.length === 0) {
+      return res.status(404).json({ msg: 'Role not found' });
+    }
+
+    const roleName = existing[0].name.toUpperCase();
+
+    // Prevent deleting SYSTEM roles (Requested to be removed/deletable)
+    // if (['SUPER_ADMIN', 'ADMIN', 'USER', 'SUBSCRIBER'].includes(roleName)) {
+    //  return res.status(403).json({ msg: 'Cannot delete system roles' });
+    // }
+
+    // Check if any users are assigned to this role
+    const [users] = await db.query('SELECT id FROM users WHERE role_id = ?', [roleId]);
+    if (users.length > 0) {
+      return res.status(400).json({ msg: `Cannot delete role. ${users.length} users are assigned to it.` });
+    }
+
+    // Delete role (and cascade permissions usually handles role_permissions, but let's be safe or rely on FK)
+    // Assuming FK ON DELETE CASCADE exists for role_permissions, otherwise delete manually:
+    await db.query('DELETE FROM role_permissions WHERE role_id = ?', [roleId]);
+    await db.query('DELETE FROM roles WHERE id = ?', [roleId]);
+
+    res.status(200).json({ msg: 'Role deleted successfully', roleId });
+  } catch (error) {
+    console.error('Error deleting role:', error);
+    res.status(500).json({ msg: 'Server error while deleting role' });
   }
 };
 

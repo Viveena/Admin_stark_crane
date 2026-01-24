@@ -36,8 +36,8 @@ exports.getPage = async (req, res) => {
 
     // Validate page key against allowed pages
     const allowedPages = [
-      'home', 'product', 'service', 'location', 'industry',
-      'parts', 'blogs', 'events', 'news', 'case_study',
+      'home', 'products', 'service', 'location', 'industry',
+      'parts', 'blogs', 'events', 'news', 'case_study', 'case-study',
       'about', 'career', 'contact', 'faq'
     ];
 
@@ -154,10 +154,10 @@ exports.updatePage = async (req, res) => {
     // content_json is passed from frontend. We'll store it in content_data
     const { content_json } = req.body;
 
-    // Validate page key
+    // Validate page key against allowed pages
     const allowedPages = [
-      'home', 'product', 'service', 'location', 'industry',
-      'parts', 'blogs', 'events', 'news', 'case_study',
+      'home', 'products', 'service', 'location', 'industry',
+      'parts', 'blogs', 'events', 'news', 'case_study', 'case-study',
       'about', 'career', 'contact', 'faq'
     ];
 

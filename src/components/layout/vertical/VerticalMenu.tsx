@@ -92,6 +92,9 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
       .replace(/[^\w\-]+/g, '')
       .replace(/\-\-+/g, '-')
 
+    // Special case for Home Page which might be saved as 'home'
+    if (pageTitle === 'Home Page' && permissions['home']?.read) return true
+
     // Check if permission object exists and read is true
     return permissions[pageKey]?.read === true
   }

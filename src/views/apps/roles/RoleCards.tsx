@@ -22,47 +22,74 @@ import Link from '@components/Link'
 import CustomAvatar from '@core/components/mui/Avatar'
 
 type CardDataType = {
+  id?: number | string
   title: string
   avatars: string[]
   totalUsers: number
 }
 
-// Vars - Keeping 2 template cards as requested
-const templateCards: CardDataType[] = [
-  { totalUsers: 4, title: 'Administrator', avatars: ['1.png', '2.png', '3.png', '4.png'] },
-  { totalUsers: 7, title: 'Editor', avatars: ['5.png', '6.png', '7.png'] }
-]
+// Vars
+// Removed templateCards to rely on real API data
 
 const RoleCards = () => {
-  const [cards, setCards] = useState<CardDataType[]>(templateCards)
+  const [cards, setCards] = useState<CardDataType[]>([])
+
+  const fetchRoles = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch('/api/roles', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const dynamicRoles = (data.roles || [])
+          .filter((r: any) => {
+            const roleName = (r.name || '').toString().toUpperCase().trim();
+            return !['SUPER_ADMIN', 'ADMIN', 'SUPER ADMIN', 'ADMINISTRATOR', 'ROOT'].includes(roleName);
+          })
+          .map((r: any) => ({
+            id: r.id,
+            title: r.name,
+            totalUsers: r.totalUsers || 0,
+            avatars: ['1.png', '2.png', '3.png'] // Still placeholder avatars for design
+          }))
+
+        setCards(dynamicRoles)
+      }
+    } catch (error) {
+      console.error('Failed to fetch roles', error)
+    }
+  }
 
   useEffect(() => {
-    const fetchRoles = async () => {
+    fetchRoles()
+  }, [])
+
+  const handleDeleteRole = async (roleId: number) => {
+    if (confirm('Are you sure you want to delete this role?')) {
       try {
         const token = localStorage.getItem('token')
-        const res = await fetch('/api/roles', {
+        const res = await fetch(`/api/roles/${roleId}`, {
+          method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
           }
         })
-        if (res.ok) {
-          const data = await res.json()
-          const dynamicRoles = (data.roles || [])
-            .filter((r: any) => !['SUPER_ADMIN', 'ADMIN', 'USER'].includes(r.name))
-            .map((r: any) => ({
-              title: r.name,
-              totalUsers: 0, // Placeholder as we don't have user count per role API yet
-              avatars: ['1.png', '2.png'] // Placeholder avatars
-            }))
 
-          setCards([...templateCards, ...dynamicRoles])
+        if (res.ok) {
+          fetchRoles() // Refresh list
+        } else {
+          const errorData = await res.json()
+          alert(errorData.msg || 'Failed to delete role')
         }
       } catch (error) {
-        console.error('Failed to fetch roles', error)
+        console.error('Error deleting role', error)
+        alert('Error deleting role')
       }
     }
-    fetchRoles()
-  }, [])
+  }
 
   // Vars
   const typographyProps: TypographyProps = {
@@ -123,9 +150,14 @@ const RoleCards = () => {
                       dialogProps={{ title: item.title }}
                     />
                   </div>
-                  <IconButton>
-                    <i className='ri-file-copy-line text-secondary' />
-                  </IconButton>
+                  <div>
+                    <IconButton onClick={() => handleDeleteRole(item.id as number)}>
+                      <i className='ri-delete-bin-7-line text-textSecondary' />
+                    </IconButton>
+                    <IconButton>
+                      <i className='ri-file-copy-line text-secondary' />
+                    </IconButton>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -22,15 +22,9 @@ type DataType = {
 }
 
 // Vars
-const data: DataType[] = [
-    {
-        title: 'Total FAQs',
-        value: '5',
-        icon: 'ri-question-answer-line',
-    }
-]
+// Vars removed as we use props now
 
-const FaqCard = () => {
+const FaqCard = ({ totalFaqs }: { totalFaqs: number }) => {
     // Hooks
     const isBelowMdScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
     const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
@@ -39,24 +33,19 @@ const FaqCard = () => {
         <Card>
             <CardContent>
                 <Grid container spacing={6}>
-                    {data.map((item, index) => (
-                        <Grid
-                            size={{ xs: 12, sm: 6, md: 3 }}
-                            key={index}
-                        >
-                            <div className='flex flex-col gap-1'>
-                                <div className='flex justify-between'>
-                                    <div className='flex flex-col gap-1'>
-                                        <Typography>{item.title}</Typography>
-                                        <Typography variant='h4'>{item.value}</Typography>
-                                    </div>
-                                    <CustomAvatar variant='rounded' size={44}>
-                                        <i className={classnames(item.icon, 'text-[28px]')} />
-                                    </CustomAvatar>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                        <div className='flex flex-col gap-1'>
+                            <div className='flex justify-between'>
+                                <div className='flex flex-col gap-1'>
+                                    <Typography>Total FAQs</Typography>
+                                    <Typography variant='h4'>{totalFaqs}</Typography>
                                 </div>
+                                <CustomAvatar variant='rounded' size={44}>
+                                    <i className={classnames('ri-question-answer-line', 'text-[28px]')} />
+                                </CustomAvatar>
                             </div>
-                        </Grid>
-                    ))}
+                        </div>
+                    </Grid>
                 </Grid>
             </CardContent>
         </Card>
