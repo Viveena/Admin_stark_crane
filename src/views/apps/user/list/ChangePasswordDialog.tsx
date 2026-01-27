@@ -41,7 +41,7 @@ const ChangePasswordDialog = ({ open, handleClose, handleSave }: Props) => {
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth='sm'>
             <DialogTitle className='flex items-center justify-between'>
-                <Typography variant='h5'>Change Password</Typography>
+                <Typography variant='h5' component='span'>Change Password</Typography>
                 <IconButton size='small' onClick={resetForm}>
                     <i className='ri-close-line text-2xl' />
                 </IconButton>

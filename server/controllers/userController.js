@@ -297,3 +297,42 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ msg: 'Server error while deleting user' });
   }
 };
+
+/**
+ * Update user password
+ * PATCH /api/users/:id/password
+ */
+exports.updateUserPassword = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const userId = req.params.id;
+  const { password } = req.body;
+
+  try {
+    // Validate password
+    if (!password || password.length < 6) {
+      return res.status(400).json({ msg: 'Password must be at least 6 characters long' });
+    }
+
+    // Check if user exists
+    const [existing] = await db.query('SELECT id, role_id FROM users WHERE id = ?', [userId]);
+    if (existing.length === 0) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update password
+    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+
+    res.status(200).json({ msg: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({ msg: 'Server error while updating password' });
+  }
+};

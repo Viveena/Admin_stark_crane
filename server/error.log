@@ -2,3 +2,35 @@
     at PromisePool.query (E:\Admin\Stark_Crane_Admin\server\node_modules\mysql2\lib\promise\pool.js:36:22)
     at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:200:31)
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2026-01-26T08:52:35.311Z - UpdatePage Error: TypeError: Cannot destructure property 'content_json' of 'req.body' as it is undefined.
+    at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:155:13)
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at E:\Admin\Stark_Crane_Admin\server\middlewares\dynamicPermissionMiddleware.js:33:16
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at middleware (E:\Admin\Stark_Crane_Admin\server\node_modules\express-validator\lib\middlewares\check.js:16:13)
+2026-01-26T08:53:23.078Z - UpdatePage Error: TypeError: Cannot destructure property 'content_json' of 'req.body' as it is undefined.
+    at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:155:13)
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at E:\Admin\Stark_Crane_Admin\server\middlewares\dynamicPermissionMiddleware.js:33:16
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at middleware (E:\Admin\Stark_Crane_Admin\server\node_modules\express-validator\lib\middlewares\check.js:16:13)
+2026-01-26T08:53:30.851Z - UpdatePage Error: TypeError: Cannot destructure property 'content_json' of 'req.body' as it is undefined.
+    at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:155:13)
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at E:\Admin\Stark_Crane_Admin\server\middlewares\dynamicPermissionMiddleware.js:33:16
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at middleware (E:\Admin\Stark_Crane_Admin\server\node_modules\express-validator\lib\middlewares\check.js:16:13)
+2026-01-26T08:53:44.171Z - UpdatePage Error: TypeError: Cannot destructure property 'content_json' of 'req.body' as it is undefined.
+    at exports.updatePage (E:\Admin\Stark_Crane_Admin\server\controllers\pagesController.js:155:13)
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at E:\Admin\Stark_Crane_Admin\server\middlewares\dynamicPermissionMiddleware.js:33:16
+    at Layer.handleRequest (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\layer.js:152:17)
+    at next (E:\Admin\Stark_Crane_Admin\server\node_modules\router\lib\route.js:157:13)
+    at middleware (E:\Admin\Stark_Crane_Admin\server\node_modules\express-validator\lib\middlewares\check.js:16:13)

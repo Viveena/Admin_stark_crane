@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { createUser, getUsers, toggleUserStatus, getMe, deleteUser, getUser } = require('../controllers/userController');
+const { createUser, getUsers, toggleUserStatus, getMe, deleteUser, getUser, updateUserPassword } = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminOnlyMiddleware = require('../middlewares/adminOnlyMiddleware');
 
@@ -110,5 +110,18 @@ router.patch(
  * Delete a user
  */
 router.delete('/:id', deleteUser);
+
+/**
+ * PATCH /api/users/:id/password
+ * Update user password
+ */
+router.patch(
+  '/:id/password',
+  [
+    param('id').isInt({ min: 1 }).withMessage('User ID must be a valid integer'),
+    body('password').notEmpty().withMessage('Password is required').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+  ],
+  updateUserPassword
+);
 
 module.exports = router;

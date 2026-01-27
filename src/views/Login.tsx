@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 
 // Next Imports
@@ -87,12 +87,34 @@ const Login = ({ mode }: { mode: Mode }) => {
   const [step, setStep] = useState<'login' | 'otp'>('login')
   const [otp, setOtp] = useState<string | null>(null)
 
+
+
   // Hooks
   const router = useRouter()
   const { lang: locale } = useParams()
   const { settings } = useSettings()
 
   // Vars
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      const storedRole = localStorage.getItem('userRole')
+      const storedPermissions = localStorage.getItem('userPermissions')
+
+      let permissions = {}
+      if (storedPermissions) {
+        try {
+          permissions = JSON.parse(storedPermissions)
+        } catch (e) {
+          console.error('Error parsing permissions', e)
+        }
+      }
+
+      const homeRoute = getHomeRoute(storedRole || '', permissions)
+      router.replace(homeRoute)
+    }
+  }, [router])
   const darkImg = '/images/pages/auth-v2-mask-1-dark.png'
   const lightImg = '/images/pages/auth-v2-mask-1-light.png'
   const darkIllustration = '/images/illustrations/auth/v2-login-dark.png'

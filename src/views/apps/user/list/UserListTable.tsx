@@ -165,20 +165,38 @@ const UserListTable = ({ tableData, setData, onDelete }: { tableData: UsersType[
     setChangePasswordOpen(true)
   }
 
-  const handlePasswordSave = (password: string) => {
+  const handlePasswordSave = async (password: string) => {
     if (selectedUser) {
-      const updatedData = tableData?.map(user => {
-        if (user.id === selectedUser.id) {
-          return { ...user, password }
-        }
-        return user
-      })
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch(`/api/users/${selectedUser.id}/password`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ password })
+        })
 
-      setData(updatedData)
+        if (!response.ok) {
+          const errorData = await response.json()
+          alert(errorData.msg || 'Failed to update password')
+          return
+        }
+
+        alert('Password updated successfully')
+
+        // No need to update local state as password isn't visible
+        // But if needed, we can trigger refetch or similar
+      } catch (error) {
+        console.error('Error updating password:', error)
+        alert('Network error while updating password')
+      }
     }
     setChangePasswordOpen(false)
     setSelectedUser(null)
   }
+
 
   const columns = useMemo<ColumnDef<UsersTypeWithAction, any>[]>(
     () => [
